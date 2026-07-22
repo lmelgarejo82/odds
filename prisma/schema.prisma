@@ -120,6 +120,27 @@ enum StatareaRowStatus {
   REJECTED
 }
 
+enum MatchRunType {
+  PRIMARY
+  STABILITY_DIAGNOSTIC
+}
+
+enum MatchRunStatus {
+  COMPLETED
+}
+
+enum MatchOrientation {
+  DIRECT
+  REVERSED
+}
+
+enum MatchConfidenceClass {
+  EXACT
+  STRONG
+  REVIEW
+  UNRESOLVED
+}
+
 model SourceArtifact {
   id                String                   @id @default(cuid())
   source            Source
@@ -318,6 +339,108 @@ model StatareaCaptureAuditEvent {
   snapshotId    String?
   detailsJson   String
   createdAt     DateTime @default(now())
+}
+
+model MatchRun {
+  id                 String            @id @default(cuid())
+  sportDate          DateTime
+  forebetSnapshotId  String
+  forebetSha256      String
+  statareaSnapshotId String
+  statareaSha256     String
+  matcherVersion     String
+  normalizerVersion  String
+  configurationHash  String
+  configurationJson  String
+  runType            MatchRunType
+  status             MatchRunStatus
+  forebetInputCount  Int
+  statareaInputCount Int
+  matchedCount       Int
+  ambiguousCount     Int
+  onlyForebetCount   Int
+  onlyStatareaCount  Int
+  conflictCount      Int
+  exactCount         Int
+  conservativeCount  Int
+  approximateCount   Int
+  warningsJson       String
+  exportPath         String
+  createdAt          DateTime          @default(now())
+  candidates         MatchCandidate[]
+  decisions          MatchDecision[]
+  attempts           MatchRunAttempt[]
+
+  @@unique([sportDate, forebetSnapshotId, statareaSnapshotId, matcherVersion, normalizerVersion, configurationHash, runType])
+}
+
+model MatchRunAttempt {
+  id        String   @id @default(cuid())
+  runId     String
+  status    String
+  createdAt DateTime @default(now())
+  run       MatchRun @relation(fields: [runId], references: [id])
+}
+
+model MatchCandidate {
+  id                   String           @id @default(cuid())
+  runId                String
+  forebetObservationId String?
+  statareaRowId        String?
+  orientation          MatchOrientation
+  homeScore            Float
+  awayScore            Float
+  competitionEvidence  String
+  countryEvidence      String
+  categoryEvidence     String
+  aggregateScore       Float
+  marginToSecond       Float?
+  stage                String
+  evidenceJson         String
+  rejectionReasonsJson String
+  rank                 Int
+  createdAt            DateTime         @default(now())
+  run                  MatchRun         @relation(fields: [runId], references: [id])
+
+  @@unique([runId, forebetObservationId, statareaRowId, orientation])
+}
+
+model MatchDecision {
+  id                   String               @id @default(cuid())
+  runId                String
+  status               ReconciliationStatus
+  forebetObservationId String?
+  statareaRowId        String?
+  selectedCandidateId  String?
+  reasonCode           String
+  reasonsJson          String
+  warningsJson         String
+  confidenceClass      MatchConfidenceClass
+  createdAt            DateTime             @default(now())
+  run                  MatchRun             @relation(fields: [runId], references: [id])
+
+  @@index([runId, status])
+}
+
+model MatchAuditEvent {
+  id          String   @id @default(cuid())
+  runId       String?
+  eventType   String
+  detailsJson String
+  createdAt   DateTime @default(now())
+}
+
+model MatchStabilityReport {
+  id                    String   @id @default(cuid())
+  sportDate             DateTime
+  primaryRunId          String
+  alternativeRunIdsJson String
+  reportHash            String
+  reportJson            String
+  exportPath            String
+  createdAt             DateTime @default(now())
+
+  @@unique([primaryRunId, reportHash])
 }
 
 model FootballMatch {

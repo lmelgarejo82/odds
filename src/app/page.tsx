@@ -1,20 +1,23 @@
 import { ForebetStatus } from "@/components/forebet-status";
 import { StatareaStatus } from "@/components/statarea-status";
+import { ReconciliationStatus } from "@/components/reconciliation-status";
 import { database } from "@/infrastructure/database";
 export const dynamic = "force-dynamic";
 const actions = ["Actualizar datos", "Ver mejores partidos", "Seguimiento"];
 export default async function Home() {
-  const [forebetArtifacts, forebetRows, statareaRows] = await Promise.all([
+  const [forebetArtifacts, forebetRows, statareaRows, matched, ambiguous] = await Promise.all([
     database.sourceArtifact.count({ where: { source: "FOREBET" } }),
     database.forebetObservation.count(),
     database.statareaRawRow.count(),
+    database.matchDecision.count({ where: { status: "MATCHED" } }),
+    database.matchDecision.count({ where: { status: "AMBIGUOUS" } }),
   ]);
   const metrics = [
     ["Artefactos Forebet", forebetArtifacts],
     ["Observaciones Forebet", forebetRows],
     ["Filas raw Statarea", statareaRows],
-    ["Emparejados", 0],
-    ["Ambiguos", 0],
+    ["Emparejados", matched],
+    ["Ambiguos", ambiguous],
     ["Reportes históricos", 0],
     ["Rankings diarios", 0],
     ["Seguimientos", 0],
@@ -70,6 +73,7 @@ export default async function Home() {
       </section>
       <ForebetStatus />
       <StatareaStatus />
+      <ReconciliationStatus />
       <section className="research-grid">
         <article className="panel">
           <span className="eyebrow">Investigación</span>

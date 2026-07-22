@@ -7,3 +7,5 @@ Controles: `npm run lint`, `npm run typecheck`, `npm run test:run`, `npm run bui
 La única captura habilitada se ejecuta con `npm run capture:forebet -- --date=2026-07-21`. La URL se construye internamente; no se admiten URL ni fechas arbitrarias. La evidencia queda fuera de Git bajo `var/evidence/forebet`.
 
 Statarea se captura con `npm run capture:statarea -- --date=2026-07-21`. Su evidencia y export raw quedan en `var/evidence/statarea` y `var/exports/statarea`. `npm run verify:statarea-idempotency -- <sha256>` reproduce una evidencia local cuyo hash se verifica, sin realizar acceso de red.
+
+La conciliación offline se ejecuta con `npm run reconcile:fixtures -- --date=2026-07-21`. Los exports quedan bajo `var/exports/reconciliation` y se revalidan con `npm run validate:reconciliation-export -- <ruta>`.
