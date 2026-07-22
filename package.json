@@ -25,7 +25,10 @@
     "audit:history": "tsx scripts/audit-history.ts",
     "preflight:history-day-one": "tsx scripts/preflight-history-day-one.ts",
     "validate:history-export": "tsx scripts/validate-history-export.ts",
-    "verify:r3-migration": "tsx scripts/verify-r3-migration.ts"
+    "verify:r3-migration": "tsx scripts/verify-r3-migration.ts",
+    "audit:statarea-semantic-evidence": "tsx scripts/analyze-statarea-semantic-evidence.ts --r2",
+    "assess:statarea-semantics": "tsx scripts/assess-statarea-semantics.ts",
+    "audit:statarea-semantics": "tsx scripts/audit-statarea-semantics.ts"
   },
   "prisma": {
     "seed": "tsx prisma/seed.ts"

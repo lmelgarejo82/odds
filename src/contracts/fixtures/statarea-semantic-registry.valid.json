@@ -1,0 +1,15 @@
+{
+  "contractVersion":"statarea-semantic-registry/1.0",
+  "code":"STATAREA-LEGACY-SEMANTIC-REGISTRY",
+  "version":"1.0.0",
+  "source":"STATAREA",
+  "sourcePresentation":"LEGACY_OFFICIAL",
+  "parserVersion":"statarea-legacy-daily-raw/1.0.0",
+  "evidenceStatus":"VERIFIED",
+  "evidence":{"legendSha256":"7b12c7c3795000ca30a29afe7b65d863f1a9a5f426b81cd012a3fe37feebb3c0","bridgeDiagnosticSha256":"9be927a70b8972c0edc94209369247a460431274949b1f9e6891fd4a7d2e5e0b","snapshotsVerified":21,"rowsVerified":1110,"resultsUsed":0},
+  "fieldDefinitions":[{"rawHeader":"1","canonicalField":"sourceHomeWinPercent","meaning":"Porcentaje fuente de victoria del equipo local","unit":"SOURCE_PERCENT","direction":"HOME_WIN","line":null,"semanticStatus":"VERIFIED_DIRECT","evidenceLevel":"OFFICIAL_DIRECT_RESOURCE_BRIDGE","evidence":{"legendSha256":"7b12c7c3795000ca30a29afe7b65d863f1a9a5f426b81cd012a3fe37feebb3c0","legendResourcePath":"/images/predictions/1.gif","officialAlt":"prediction to win host team","historicalHeaderResourcePath":"/images/predictions/1.gif","snapshotsVerified":21,"rowsVerified":1110,"bridgeStatus":"DIRECT_RESOURCE_MATCH","bridgeDiagnosticSha256":"9be927a70b8972c0edc94209369247a460431274949b1f9e6891fd4a7d2e5e0b"},"normalizationRule":"trim -> require terminal % -> Decimal.js parse -> validate inclusive range 0..100","derivationRule":null,"analysisEnabled":true,"warnings":[]}],
+  "derivedDefinitions":[{"rawHeader":null,"canonicalField":"sourceUnder15Percent","meaning":"Valor derivado de menos de 1.5 goles","unit":"SOURCE_PERCENT","direction":"UNDER_1_5","line":"1.5","semanticStatus":"VERIFIED_DERIVED","evidenceLevel":"DETERMINISTIC_FORMULA","evidence":{"components":["sourceOver15Percent"],"formula":"100 - sourceOver15Percent","registryVersion":"1.0.0"},"normalizationRule":"Decimal.js operands; preserve source precision; validate inclusive range 0..100","derivationRule":"100 - sourceOver15Percent","analysisEnabled":true,"warnings":["Valor derivado; no es una probabilidad real ni calibrada."]}],
+  "assessmentVersion":"statarea-semantic-assessment/1.0.0",
+  "warnings":["Estos valores son porcentajes publicados por Statarea; no son probabilidades reales ni calibradas."],
+  "registryHash":"cb743aa786583adbfde71cf592726c15176cb1743d82518704783ffa95a39b36"
+}

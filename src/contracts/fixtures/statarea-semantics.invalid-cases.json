@@ -1,0 +1,18 @@
+{
+  "contractFixtureVersion": "statarea-semantics-invalid-cases/1.0",
+  "registry": [
+    { "case": "registry-without-evidence", "operation": "delete", "path": "fieldDefinitions.0.evidence.officialAlt" },
+    { "case": "registry-invalid-hash", "operation": "replace", "path": "registryHash", "value": "invalid" },
+    { "case": "over-without-direction", "operation": "replace", "path": "fieldDefinitions.6.direction", "value": null },
+    { "case": "under-without-derivation", "operation": "replace", "path": "derivedDefinitions.0.derivationRule", "value": null },
+    { "case": "double-chance-without-components", "operation": "replace", "path": "derivedDefinitions.3.evidence.components", "value": [] }
+  ],
+  "assessment": [
+    { "case": "source-value-out-of-range", "operation": "normalizer-input", "value": "100.1%" },
+    { "case": "wrong-manifest-hash", "operation": "replace", "path": "datasetReference.manifestHash", "value": "invalid" },
+    { "case": "modern-presentation", "operation": "replace", "path": "datasetReference.sourcePresentation", "value": "MODERN" },
+    { "case": "actual-result-added", "operation": "add", "path": "actualResult", "value": "2-1" },
+    { "case": "hit-rate-added", "operation": "add", "path": "hitRate", "value": 1 },
+    { "case": "score-added", "operation": "add", "path": "Score", "value": 99 }
+  ]
+}

@@ -1,0 +1,57 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "statarea-semantic-registry/1.0",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["contractVersion","code","version","source","sourcePresentation","parserVersion","evidenceStatus","evidence","fieldDefinitions","derivedDefinitions","assessmentVersion","warnings","registryHash"],
+  "properties": {
+    "contractVersion": {"const":"statarea-semantic-registry/1.0"},
+    "code": {"const":"STATAREA-LEGACY-SEMANTIC-REGISTRY"},
+    "version": {"const":"1.0.0"},
+    "source": {"const":"STATAREA"},
+    "sourcePresentation": {"const":"LEGACY_OFFICIAL"},
+    "parserVersion": {"const":"statarea-legacy-daily-raw/1.0.0"},
+    "evidenceStatus": {"const":"VERIFIED"},
+    "evidence": {
+      "type":"object","additionalProperties":false,
+      "required":["legendSha256","bridgeDiagnosticSha256","snapshotsVerified","rowsVerified","resultsUsed"],
+      "properties": {
+        "legendSha256":{"const":"7b12c7c3795000ca30a29afe7b65d863f1a9a5f426b81cd012a3fe37feebb3c0"},
+        "bridgeDiagnosticSha256":{"type":"string","pattern":"^[a-f0-9]{64}$"},
+        "snapshotsVerified":{"const":21},"rowsVerified":{"const":1110},"resultsUsed":{"const":0}
+      }
+    },
+    "fieldDefinitions":{"type":"array","minItems":1,"items":{"$ref":"#/$defs/definition"}},
+    "derivedDefinitions":{"type":"array","minItems":1,"items":{"$ref":"#/$defs/definition"}},
+    "assessmentVersion":{"const":"statarea-semantic-assessment/1.0.0"},
+    "warnings":{"type":"array","items":{"type":"string","maxLength":240}},
+    "registryHash":{"type":"string","pattern":"^[a-f0-9]{64}$"}
+  },
+  "$defs": {
+    "evidence": {
+      "type":"object","additionalProperties":false,
+      "properties": {
+        "legendSha256":{"type":"string"},"legendResourcePath":{"type":"string"},"officialAlt":{"type":"string"},"historicalHeaderResourcePath":{"type":"string"},
+        "snapshotsVerified":{"type":"integer"},"rowsVerified":{"type":"integer"},"bridgeStatus":{"type":"string"},"bridgeDiagnosticSha256":{"type":"string"},
+        "components":{"type":"array","items":{"type":"string"}},"formula":{"type":"string"},"registryVersion":{"type":"string"},"reason":{"type":"string"},"resourceFamily":{"type":"string"},"resource":{"type":"string"}
+      }
+    },
+    "definition": {
+      "type":"object","additionalProperties":false,
+      "required":["rawHeader","canonicalField","meaning","unit","direction","line","semanticStatus","evidenceLevel","evidence","normalizationRule","derivationRule","analysisEnabled","warnings"],
+      "properties": {
+        "rawHeader":{"type":["string","null"]},"canonicalField":{"type":"string"},"meaning":{"type":"string","minLength":1},
+        "unit":{"enum":["SOURCE_PERCENT","NOT_APPLICABLE"]},"direction":{"type":["string","null"]},"line":{"type":["string","null"],"enum":["1.5","2.5","3.5",null]},
+        "semanticStatus":{"enum":["VERIFIED_DIRECT","VERIFIED_DERIVED","UNVERIFIED","NOT_APPLICABLE"]},
+        "evidenceLevel":{"enum":["OFFICIAL_DIRECT_RESOURCE_BRIDGE","DETERMINISTIC_FORMULA","INSUFFICIENT","OUT_OF_SCOPE"]},
+        "evidence":{"$ref":"#/$defs/evidence"},"normalizationRule":{"type":"string"},"derivationRule":{"type":["string","null"]},"analysisEnabled":{"type":"boolean"},
+        "warnings":{"type":"array","items":{"type":"string"}}
+      },
+      "allOf": [
+        {"if":{"properties":{"semanticStatus":{"const":"VERIFIED_DIRECT"}}},"then":{"properties":{"evidenceLevel":{"const":"OFFICIAL_DIRECT_RESOURCE_BRIDGE"},"evidence":{"type":"object","required":["legendSha256","legendResourcePath","officialAlt","historicalHeaderResourcePath","snapshotsVerified","rowsVerified","bridgeStatus","bridgeDiagnosticSha256"],"properties":{"legendSha256":{},"legendResourcePath":{},"officialAlt":{},"historicalHeaderResourcePath":{},"snapshotsVerified":{},"rowsVerified":{},"bridgeStatus":{},"bridgeDiagnosticSha256":{}}}}}},
+        {"if":{"properties":{"semanticStatus":{"const":"VERIFIED_DERIVED"}}},"then":{"properties":{"evidenceLevel":{"const":"DETERMINISTIC_FORMULA"},"derivationRule":{"type":"string"},"evidence":{"type":"object","required":["components","formula","registryVersion"],"properties":{"components":{},"formula":{},"registryVersion":{}}}}}},
+        {"if":{"properties":{"rawHeader":{"enum":["1.5","2.5","3.5"]}},"required":["rawHeader"]},"then":{"properties":{"direction":{"const":"OVER"}}}}
+      ]
+    }
+  }
+}

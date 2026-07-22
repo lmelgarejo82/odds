@@ -145,6 +145,40 @@ enum HistoricalDatasetStatus {
   REUSED
 }
 
+enum SemanticEvidenceStatus {
+  VERIFIED
+}
+
+enum SemanticFieldStatus {
+  VERIFIED_DIRECT
+  VERIFIED_DERIVED
+  UNVERIFIED
+  NOT_APPLICABLE
+}
+
+enum SemanticQualityStatus {
+  READY
+  READY_WITH_WARNINGS
+  INSUFFICIENT
+  REJECTED
+}
+
+enum SemanticAssessmentStatus {
+  COMPLETED
+}
+
+enum SemanticAssessmentAttemptStatus {
+  CREATED
+  REUSED
+  FAILED
+}
+
+enum SemanticFindingSeverity {
+  INFO
+  WARNING
+  ERROR
+}
+
 enum MatchRunStatus {
   COMPLETED
 }
@@ -327,9 +361,9 @@ model StatareaSnapshotProfile {
 }
 
 model StatareaRawRow {
-  id                       String                  @id @default(cuid())
+  id                       String                       @id @default(cuid())
   snapshotId               String
-  source                   Source                  @default(STATAREA)
+  source                   Source                       @default(STATAREA)
   requestedDate            DateTime
   rowDateRaw               String?
   kickoffRaw               String?
@@ -347,8 +381,9 @@ model StatareaRawRow {
   parseStatus              StatareaRowStatus
   semanticStatus           StatareaSemanticStatus
   warningsJson             String
-  createdAt                DateTime                @default(now())
-  snapshot                 StatareaCaptureSnapshot @relation(fields: [snapshotId], references: [id])
+  createdAt                DateTime                     @default(now())
+  snapshot                 StatareaCaptureSnapshot      @relation(fields: [snapshotId], references: [id])
+  semanticProjections      StatareaSemanticProjection[]
 
   @@unique([snapshotId, sourceRowKey])
 }
@@ -497,6 +532,7 @@ model HistoricalDataset {
   days                     HistoricalDatasetDay[]
   imports                  HistoricalImportRun[]
   policies                 HistoricalDatasetCapturePolicy[]
+  semanticAssessmentRuns   SemanticAssessmentRun[]
 
   @@unique([code, version])
 }
@@ -784,4 +820,148 @@ model AuditEvent {
   createdAt   DateTime @default(now())
 
   @@unique([eventType, entityType, entityId])
+}
+
+model SemanticRegistry {
+  id                 String                      @id @default(cuid())
+  code               String
+  version            String
+  source             Source
+  sourcePresentation StatareaSourcePresentation
+  parserVersion      String
+  evidenceStatus     SemanticEvidenceStatus
+  legendSha256       String
+  registryHash       String                      @unique
+  warningsJson       String
+  createdAt          DateTime                    @default(now())
+  definitions        SemanticFieldDefinition[]
+  assessmentRuns     SemanticAssessmentRun[]
+  assessmentAttempts SemanticAssessmentAttempt[]
+  auditEvents        SemanticAuditEvent[]
+
+  @@unique([code, version])
+}
+
+model SemanticFieldDefinition {
+  id                String              @id @default(cuid())
+  registryId        String
+  rawHeader         String?
+  canonicalField    String
+  meaning           String
+  unit              String
+  direction         String?
+  line              Decimal?
+  semanticStatus    SemanticFieldStatus
+  evidenceLevel     String
+  evidenceJson      String
+  normalizationRule String
+  derivationRule    String?
+  analysisEnabled   Boolean             @default(false)
+  createdAt         DateTime            @default(now())
+  registry          SemanticRegistry    @relation(fields: [registryId], references: [id], onDelete: Restrict)
+
+  @@unique([registryId, canonicalField])
+}
+
+model SemanticAssessmentRun {
+  id                 String                       @id @default(cuid())
+  registryId         String
+  datasetId          String
+  manifestHash       String
+  assessmentVersion  String
+  status             SemanticAssessmentStatus
+  rowCount           Int
+  matchedCount       Int
+  qualitySummaryJson String
+  createdAt          DateTime                     @default(now())
+  registry           SemanticRegistry             @relation(fields: [registryId], references: [id], onDelete: Restrict)
+  dataset            HistoricalDataset            @relation(fields: [datasetId], references: [id], onDelete: Restrict)
+  attempts           SemanticAssessmentAttempt[]
+  projections        StatareaSemanticProjection[]
+  findings           SemanticQualityFinding[]
+  auditEvents        SemanticAuditEvent[]
+
+  @@unique([registryId, datasetId, manifestHash, assessmentVersion])
+}
+
+model SemanticAssessmentAttempt {
+  id                    String                          @id @default(cuid())
+  assessmentRunId       String?
+  registryId            String
+  datasetId             String
+  status                SemanticAssessmentAttemptStatus
+  reusedAssessmentRunId String?
+  warningsJson          String
+  createdAt             DateTime                        @default(now())
+  assessmentRun         SemanticAssessmentRun?          @relation(fields: [assessmentRunId], references: [id], onDelete: Restrict)
+  registry              SemanticRegistry                @relation(fields: [registryId], references: [id], onDelete: Restrict)
+}
+
+model StatareaSemanticProjection {
+  id                          String                @id @default(cuid())
+  assessmentRunId             String
+  rawRowId                    String
+  sportsDate                  DateTime
+  partition                   HistoricalPartition
+  sourceHomeWinPercent        Decimal?
+  sourceDrawPercent           Decimal?
+  sourceAwayWinPercent        Decimal?
+  sourceDoubleChance1XPercent Decimal?
+  sourceDoubleChanceX2Percent Decimal?
+  sourceDoubleChance12Percent Decimal?
+  sourceHtHomeWinPercent      Decimal?
+  sourceHtDrawPercent         Decimal?
+  sourceHtAwayWinPercent      Decimal?
+  sourceOver15Percent         Decimal?
+  sourceUnder15Percent        Decimal?
+  sourceOver25Percent         Decimal?
+  sourceUnder25Percent        Decimal?
+  sourceOver35Percent         Decimal?
+  sourceUnder35Percent        Decimal?
+  sourceHandicap01HomePercent Decimal?
+  sourceHandicap01DrawPercent Decimal?
+  sourceHandicap01AwayPercent Decimal?
+  ou25SemanticReady           Boolean               @default(false)
+  doubleChanceSemanticReady   Boolean               @default(false)
+  htSemanticReady             Boolean               @default(false)
+  handicap01SemanticReady     Boolean               @default(false)
+  semanticReadiness           SemanticQualityStatus
+  qualityStatus               SemanticQualityStatus
+  warningsJson                String
+  createdAt                   DateTime              @default(now())
+  assessmentRun               SemanticAssessmentRun @relation(fields: [assessmentRunId], references: [id], onDelete: Restrict)
+  rawRow                      StatareaRawRow        @relation(fields: [rawRowId], references: [id], onDelete: Restrict)
+
+  @@unique([assessmentRunId, rawRowId])
+  @@index([sportsDate, partition])
+}
+
+model SemanticQualityFinding {
+  id              String                  @id @default(cuid())
+  assessmentRunId String
+  rawRowId        String?
+  sportsDate      DateTime?
+  field           String
+  findingType     String
+  severity        SemanticFindingSeverity
+  observedValue   String?
+  expectedRule    String
+  detailsJson     String
+  createdAt       DateTime                @default(now())
+  assessmentRun   SemanticAssessmentRun   @relation(fields: [assessmentRunId], references: [id], onDelete: Restrict)
+
+  @@index([assessmentRunId, field, findingType])
+}
+
+model SemanticAuditEvent {
+  id              String                 @id @default(cuid())
+  assessmentRunId String?
+  registryId      String?
+  eventType       String
+  contextJson     String
+  createdAt       DateTime               @default(now())
+  assessmentRun   SemanticAssessmentRun? @relation(fields: [assessmentRunId], references: [id], onDelete: Restrict)
+  registry        SemanticRegistry?      @relation(fields: [registryId], references: [id], onDelete: Restrict)
+
+  @@index([eventType, createdAt])
 }
