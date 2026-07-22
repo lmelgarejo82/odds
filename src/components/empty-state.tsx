@@ -1,0 +1,1 @@
+export function EmptyState({title}:{title:string}){return <section className="panel empty-state"><span className="eyebrow">Bloque 1 · Sin datos</span><h1>{title}</h1><p>Este módulo está preparado, pero todavía no hay datos disponibles.</p><p>No se cargaron registros ficticios.</p></section>}

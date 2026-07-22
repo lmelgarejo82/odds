@@ -1,0 +1,16 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "source-import-report.schema.json",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schemaVersion", "source", "requestedDate", "status", "artifactCount", "recordCount", "warnings"],
+  "properties": {
+    "schemaVersion": { "const": "1.0" },
+    "source": { "enum": ["FOREBET", "STATAREA"] },
+    "requestedDate": { "type": "string", "format": "date" },
+    "status": { "enum": ["PENDING", "CAPTURED", "PARSED", "COMPLETE", "PARTIAL", "UNKNOWN", "FAILED", "BLOCKED"] },
+    "artifactCount": { "type": "integer", "minimum": 0 },
+    "recordCount": { "type": "integer", "minimum": 0 },
+    "warnings": { "type": "array", "items": { "type": "string" } }
+  }
+}

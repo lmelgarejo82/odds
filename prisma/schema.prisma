@@ -1,0 +1,298 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+enum Source {
+  FOREBET
+  STATAREA
+  RESULT
+}
+
+enum ArtifactStatus {
+  PENDING
+  CAPTURED
+  PARSED
+  COMPLETE
+  PARTIAL
+  UNKNOWN
+  FAILED
+  BLOCKED
+}
+
+enum MatchStatus {
+  SCHEDULED
+  FINISHED
+  POSTPONED
+  CANCELLED
+  UNKNOWN
+}
+
+enum ReconciliationStatus {
+  MATCHED
+  AMBIGUOUS
+  ONLY_FOREBET
+  ONLY_STATAREA
+  CONFLICT
+}
+
+enum ResultStatus {
+  PROVISIONAL
+  CONFIRMED
+  CORRECTED
+  VOID
+}
+
+enum ReportStatus {
+  DRAFT
+  GENERATED
+  FAILED
+}
+
+enum RankingStatus {
+  DRAFT
+  GENERATED
+  REVIEWED
+  CLOSED
+}
+
+enum SuggestedSide {
+  OVER_2_5
+  UNDER_2_5
+  NO_SUGGESTION
+}
+
+enum EvidenceGrade {
+  A
+  B
+  C
+  EXPERIMENTAL
+  INSUFFICIENT
+}
+
+enum TrackingStatus {
+  PENDING
+  HIT
+  MISS
+  VOID
+  NOT_EVALUABLE
+}
+
+enum ResearchStatus {
+  DRAFT
+  ACTIVE
+  CLOSED
+}
+
+model SourceArtifact {
+  id                String              @id @default(cuid())
+  source            Source
+  requestedDate     DateTime
+  sourceUrl         String
+  captureMethod     String
+  contentHash       String              @unique
+  byteSize          Int
+  parserVersion     String
+  storagePath       String
+  capturedAt        DateTime
+  status            ArtifactStatus
+  createdAt         DateTime            @default(now())
+  forebetSnapshots  ForebetOuSnapshot[]
+  statareaSnapshots StatareaSnapshot[]
+  results           MatchResult[]
+}
+
+model FootballMatch {
+  id                String              @id @default(cuid())
+  canonicalKey      String              @unique
+  sportDate         DateTime
+  kickoffText       String
+  kickoffUtc        DateTime?
+  country           String
+  competition       String
+  homeTeam          String
+  awayTeam          String
+  category          String
+  status            MatchStatus
+  createdAt         DateTime            @default(now())
+  forebetSnapshots  ForebetOuSnapshot[]
+  statareaSnapshots StatareaSnapshot[]
+  forebetLinks      CrossSourceMatch[]  @relation("ForebetMatch")
+  statareaLinks     CrossSourceMatch[]  @relation("StatareaMatch")
+  results           MatchResult[]
+}
+
+model ForebetOuSnapshot {
+  id                 String         @id @default(cuid())
+  matchId            String
+  sourceArtifactId   String
+  probabilityUnder25 Decimal
+  probabilityOver25  Decimal
+  prediction         String
+  predictedHomeGoals Decimal
+  predictedAwayGoals Decimal
+  averageGoals       Decimal
+  sourceOdds         String?
+  sourceRowHash      String         @unique
+  parserVersion      String
+  createdAt          DateTime       @default(now())
+  match              FootballMatch  @relation(fields: [matchId], references: [id])
+  artifact           SourceArtifact @relation(fields: [sourceArtifactId], references: [id])
+}
+
+model StatareaSnapshot {
+  id                      String         @id @default(cuid())
+  matchId                 String
+  sourceArtifactId        String
+  homeProbability         Decimal
+  drawProbability         Decimal
+  awayProbability         Decimal
+  halftimeHomeProbability Decimal
+  halftimeDrawProbability Decimal
+  halftimeAwayProbability Decimal
+  over15Value             Decimal
+  over25Value             Decimal
+  over35Value             Decimal
+  btsValue                Decimal
+  otsValue                Decimal
+  tip                     String
+  sourceRowHash           String         @unique
+  parserVersion           String
+  createdAt               DateTime       @default(now())
+  match                   FootballMatch  @relation(fields: [matchId], references: [id])
+  artifact                SourceArtifact @relation(fields: [sourceArtifactId], references: [id])
+}
+
+model CrossSourceMatch {
+  id                  String                 @id @default(cuid())
+  forebetMatchId      String?
+  statareaMatchId     String?
+  status              ReconciliationStatus
+  matchingMethod      String
+  matchingScore       Decimal
+  matchingDetailsJson String
+  confirmedAt         DateTime?
+  createdAt           DateTime               @default(now())
+  forebetMatch        FootballMatch?         @relation("ForebetMatch", fields: [forebetMatchId], references: [id])
+  statareaMatch       FootballMatch?         @relation("StatareaMatch", fields: [statareaMatchId], references: [id])
+  candidates          DailyRankedCandidate[]
+}
+
+model MatchResult {
+  id               String         @id @default(cuid())
+  matchId          String
+  homeGoals        Int
+  awayGoals        Int
+  status           ResultStatus
+  sourceArtifactId String
+  resultHash       String         @unique
+  correctsResultId String?
+  createdAt        DateTime       @default(now())
+  match            FootballMatch  @relation(fields: [matchId], references: [id])
+  artifact         SourceArtifact @relation(fields: [sourceArtifactId], references: [id])
+  corrects         MatchResult?   @relation("ResultCorrections", fields: [correctsResultId], references: [id])
+  corrections      MatchResult[]  @relation("ResultCorrections")
+}
+
+model ResearchConfiguration {
+  id                String         @id @default(cuid())
+  code              String
+  version           String
+  status            ResearchStatus
+  active            Boolean        @default(false)
+  configurationJson String
+  configurationHash String         @unique
+  createdAt         DateTime       @default(now())
+
+  @@unique([code, version])
+}
+
+model AnalysisSpecification {
+  id                String                     @id @default(cuid())
+  code              String
+  version           String
+  engineVersion     String
+  configurationJson String
+  configurationHash String                     @unique
+  createdAt         DateTime                   @default(now())
+  reports           HistoricalAnalysisReport[]
+  rankings          DailyRanking[]
+
+  @@unique([code, version])
+}
+
+model HistoricalAnalysisReport {
+  id              String                @id @default(cuid())
+  reportId        String                @unique
+  specificationId String
+  periodFrom      DateTime
+  periodTo        DateTime
+  status          ReportStatus
+  sourceDataHash  String
+  payloadJson     String
+  payloadHash     String                @unique
+  createdAt       DateTime              @default(now())
+  specification   AnalysisSpecification @relation(fields: [specificationId], references: [id])
+}
+
+model DailyRanking {
+  id                      String                 @id @default(cuid())
+  rankingDate             DateTime
+  analysisSpecificationId String
+  status                  RankingStatus
+  generatedAt             DateTime
+  sourceDataHash          String
+  createdAt               DateTime               @default(now())
+  specification           AnalysisSpecification  @relation(fields: [analysisSpecificationId], references: [id])
+  candidates              DailyRankedCandidate[]
+
+  @@unique([rankingDate, analysisSpecificationId, sourceDataHash])
+}
+
+model DailyRankedCandidate {
+  id                      String               @id @default(cuid())
+  dailyRankingId          String
+  crossSourceMatchId      String
+  suggestedSide           SuggestedSide
+  priorityScore           Int
+  signalScore             Int
+  historicalEvidenceScore Int
+  dataQualityScore        Int
+  evidenceGrade           EvidenceGrade
+  rank                    Int
+  reasonsJson             String
+  warningsJson            String
+  explanationHash         String               @unique
+  createdAt               DateTime             @default(now())
+  ranking                 DailyRanking         @relation(fields: [dailyRankingId], references: [id])
+  crossSourceMatch        CrossSourceMatch     @relation(fields: [crossSourceMatchId], references: [id])
+  observations            TrackedObservation[]
+
+  @@unique([dailyRankingId, rank])
+}
+
+model TrackedObservation {
+  id                String               @id @default(cuid())
+  rankedCandidateId String
+  status            TrackingStatus
+  outcome           String?
+  capturedAt        DateTime
+  settledAt         DateTime?
+  createdAt         DateTime             @default(now())
+  rankedCandidate   DailyRankedCandidate @relation(fields: [rankedCandidateId], references: [id])
+}
+
+model AuditEvent {
+  id          String   @id @default(cuid())
+  eventType   String
+  entityType  String
+  entityId    String
+  detailsJson String
+  createdAt   DateTime @default(now())
+
+  @@unique([eventType, entityType, entityId])
+}

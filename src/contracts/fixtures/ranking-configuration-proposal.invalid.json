@@ -1,0 +1,1 @@
+{"schemaVersion":"1.0","code":"OU25-CROSS-SOURCE-CONSENSUS","version":"draft","targetMarket":"TOTAL_GOALS_2_5","sources":["FOREBET"],"separateSides":false,"priorityComponents":{"signalMax":50,"historicalEvidenceMax":40,"dataQualityMax":20}}

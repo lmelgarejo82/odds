@@ -1,0 +1,28 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "daily-ou25-ranking.schema.json",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schemaVersion", "rankingDate", "status", "candidates"],
+  "properties": {
+    "schemaVersion": { "const": "1.0" },
+    "rankingDate": { "type": "string", "format": "date" },
+    "status": { "enum": ["DRAFT", "GENERATED", "REVIEWED", "CLOSED"] },
+    "candidates": { "type": "array", "items": { "$ref": "#/$defs/candidate" } }
+  },
+  "$defs": { "candidate": {
+    "type": "object", "additionalProperties": false,
+    "required": ["canonicalKey", "suggestedSide", "priorityScore", "signalScore", "historicalEvidenceScore", "dataQualityScore", "evidenceGrade", "reasons", "warnings"],
+    "properties": {
+      "canonicalKey": { "type": "string", "minLength": 1 },
+      "suggestedSide": { "enum": ["OVER_2_5", "UNDER_2_5", "NO_SUGGESTION"] },
+      "priorityScore": { "type": "integer", "minimum": 0, "maximum": 100 },
+      "signalScore": { "type": "integer", "minimum": 0, "maximum": 40 },
+      "historicalEvidenceScore": { "type": "integer", "minimum": 0, "maximum": 40 },
+      "dataQualityScore": { "type": "integer", "minimum": 0, "maximum": 20 },
+      "evidenceGrade": { "enum": ["A", "B", "C", "EXPERIMENTAL", "INSUFFICIENT"] },
+      "reasons": { "type": "array", "items": { "type": "string" } },
+      "warnings": { "type": "array", "items": { "type": "string" } }
+    }
+  }}
+}

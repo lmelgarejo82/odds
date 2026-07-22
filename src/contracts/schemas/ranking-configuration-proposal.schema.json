@@ -1,0 +1,16 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "ranking-configuration-proposal.schema.json",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schemaVersion", "code", "version", "targetMarket", "sources", "separateSides", "priorityComponents"],
+  "properties": {
+    "schemaVersion": { "const": "1.0" },
+    "code": { "const": "OU25-CROSS-SOURCE-CONSENSUS" },
+    "version": { "type": "string", "pattern": "^[0-9]+\\.[0-9]+\\.[0-9]+$" },
+    "targetMarket": { "const": "TOTAL_GOALS_2_5" },
+    "sources": { "type": "array", "minItems": 2, "maxItems": 2, "prefixItems": [{ "const": "FOREBET" }, { "const": "STATAREA" }], "items": false },
+    "separateSides": { "const": true },
+    "priorityComponents": { "type": "object", "additionalProperties": false, "required": ["signalMax", "historicalEvidenceMax", "dataQualityMax"], "properties": { "signalMax": { "const": 40 }, "historicalEvidenceMax": { "const": 40 }, "dataQualityMax": { "const": 20 } } }
+  }
+}

@@ -1,0 +1,49 @@
+{
+  "name": "ou25-consensus-lab",
+  "version": "0.1.0",
+  "private": true,
+  "scripts": {
+    "dev": "next dev",
+    "build": "next build",
+    "start": "next start",
+    "lint": "eslint .",
+    "typecheck": "tsc --noEmit",
+    "test": "vitest",
+    "test:run": "vitest run",
+    "contracts:validate": "tsx scripts/validate-contracts.ts",
+    "validate": "npm run contracts:validate && npm run typecheck && npm run test:run",
+    "db:generate": "prisma generate",
+    "db:migrate": "prisma migrate dev",
+    "db:seed": "prisma db seed"
+  },
+  "prisma": {
+    "seed": "tsx prisma/seed.ts"
+  },
+  "overrides": {
+    "next": {
+      "postcss": "8.5.10",
+      "sharp": "0.35.0"
+    }
+  },
+  "dependencies": {
+    "@prisma/client": "^6.19.3",
+    "ajv": "^8.20.0",
+    "ajv-formats": "^3.0.1",
+    "decimal.js": "^10.6.0",
+    "next": "16.2.11",
+    "react": "19.2.4",
+    "react-dom": "19.2.4",
+    "zod": "^4.4.3"
+  },
+  "devDependencies": {
+    "@types/node": "^20",
+    "@types/react": "^19",
+    "@types/react-dom": "^19",
+    "eslint": "^9",
+    "eslint-config-next": "16.2.11",
+    "prisma": "^6.19.3",
+    "tsx": "^4.23.1",
+    "typescript": "^5",
+    "vitest": "^4.1.10"
+  }
+}
