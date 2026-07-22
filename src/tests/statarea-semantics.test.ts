@@ -253,5 +253,5 @@ describe("interfaz y fronteras de B006", () => {
   it("matcher y normalizador conservan sus versiones", () => { const manifest = JSON.parse(source("var/exports/history/OU25-JULY-2026-V1/manifest.json")); expect(manifest.matcher).toMatchObject({ matcherVersion: "ou25-fixture-matcher/1.0.0", normalizerVersion: "ou25-identity-normalizer/1.0.0" }); });
   it("no existe integración Apostala", () => expect(readdirSync(join(root, "src"), { recursive: true }).map(String).some((path) => /apostala/i.test(path))).toBe(false));
   it("no existe dependencia x2-ht-lab", () => expect(source("package.json")).not.toMatch(/x2-ht-lab/i));
-  it("no se creó módulo B007", () => expect(readdirSync(root, { recursive: true }).map(String).some((path) => /(?:^|[\\/])b007(?:[\\/.]|$)/i.test(path))).toBe(false));
+  it("no se creó módulo B010", () => expect(["src", "scripts", "prisma"].flatMap((directory) => readdirSync(join(root, directory), { recursive: true }).map(String)).some((path) => /(?:^|[\\/])b010(?:[\\/.]|$)/i.test(path))).toBe(false));
 });

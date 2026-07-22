@@ -1,0 +1,64 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "prospective-shadow-run/1.0",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["contractVersion", "run"],
+  "properties": {
+    "contractVersion": { "const": "prospective-shadow-run/1.0" },
+    "run": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["id", "sportsDate", "mode", "status", "forebetSnapshot", "statareaSnapshot", "matchRunId", "matcherVersion", "normalizerVersion", "matcherConfigurationHash", "registry", "policy", "outcomeEvaluationEnabled", "priceEvaluationEnabled", "frozenBeforeOutcome", "frozenAt", "fixtureCount", "counts", "warnings", "networkRequestsAtFreeze", "outcomeReads", "quoteCaptures", "runHash"],
+      "properties": {
+        "id": { "$ref": "#/$defs/id" },
+        "sportsDate": { "const": "2026-07-23" },
+        "mode": { "const": "PROSPECTIVE_SHADOW" },
+        "status": { "const": "FROZEN" },
+        "forebetSnapshot": { "$ref": "#/$defs/snapshot" },
+        "statareaSnapshot": {
+          "allOf": [
+            { "$ref": "#/$defs/snapshot" },
+            { "type": "object", "required": ["sourcePresentation"], "properties": { "sourcePresentation": { "const": "LEGACY_OFFICIAL" } } }
+          ]
+        },
+        "matchRunId": { "$ref": "#/$defs/id" },
+        "matcherVersion": { "const": "ou25-fixture-matcher/1.0.0" },
+        "normalizerVersion": { "const": "ou25-identity-normalizer/1.0.0" },
+        "matcherConfigurationHash": { "$ref": "#/$defs/hash" },
+        "registry": { "type": "object", "additionalProperties": false, "required": ["code", "version", "hash"], "properties": { "code": { "const": "STATAREA-LEGACY-SEMANTIC-REGISTRY" }, "version": { "const": "1.0.0" }, "hash": { "$ref": "#/$defs/hash" } } },
+        "policy": { "type": "object", "additionalProperties": false, "required": ["code", "version", "hash", "historicalAnalysisSpecHash"], "properties": { "code": { "const": "OU25-MARKET-PRIORITY-POLICY" }, "version": { "const": "1.0.0" }, "hash": { "$ref": "#/$defs/hash" }, "historicalAnalysisSpecHash": { "$ref": "#/$defs/hash" } } },
+        "outcomeEvaluationEnabled": { "const": false },
+        "priceEvaluationEnabled": { "const": false },
+        "frozenBeforeOutcome": { "const": true },
+        "frozenAt": { "type": "string", "format": "date-time" },
+        "fixtureCount": { "type": "integer", "minimum": 1 },
+        "counts": { "$ref": "#/$defs/counts" },
+        "warnings": { "type": "array", "items": { "type": "string" } },
+        "networkRequestsAtFreeze": { "type": "integer", "minimum": 0, "maximum": 2 },
+        "outcomeReads": { "const": 0 },
+        "quoteCaptures": { "const": 0 },
+        "runHash": { "$ref": "#/$defs/hash" }
+      }
+    }
+  },
+  "$defs": {
+    "id": { "type": "string", "minLength": 1 },
+    "hash": { "type": "string", "pattern": "^[a-f0-9]{64}$" },
+    "snapshot": { "type": "object", "additionalProperties": false, "required": ["id", "sha256", "parserVersion"], "properties": { "id": { "$ref": "#/$defs/id" }, "sha256": { "$ref": "#/$defs/hash" }, "parserVersion": { "$ref": "#/$defs/id" }, "sourcePresentation": { "const": "LEGACY_OFFICIAL" } } },
+    "counts": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["matching", "candidates", "assessments", "selections", "quoteRequests", "semantic", "availableOdds", "marketValueEvaluated", "outcomeReads", "ranking", "bets", "multiMatchCombinations"],
+      "properties": {
+        "matching": { "type": "object", "additionalProperties": false, "required": ["matched", "ambiguous", "onlyForebet", "onlyStatarea", "conflict"], "properties": { "matched": { "type": "integer", "minimum": 0 }, "ambiguous": { "type": "integer", "minimum": 0 }, "onlyForebet": { "type": "integer", "minimum": 0 }, "onlyStatarea": { "type": "integer", "minimum": 0 }, "conflict": { "type": "integer", "minimum": 0 } } },
+        "candidates": { "type": "integer", "minimum": 1 },
+        "assessments": { "type": "integer", "minimum": 1 },
+        "selections": { "type": "object", "additionalProperties": false, "required": ["PREFERRED", "PROVISIONAL", "NONE"], "properties": { "PREFERRED": { "type": "integer", "minimum": 0 }, "PROVISIONAL": { "type": "integer", "minimum": 0 }, "NONE": { "type": "integer", "minimum": 0 } } },
+        "quoteRequests": { "type": "object", "additionalProperties": false, "required": ["DOUBLE_CHANCE", "OU25", "SAME_MATCH_COMBINATION", "total", "maximumPerFixture"], "properties": { "DOUBLE_CHANCE": { "type": "integer", "minimum": 0 }, "OU25": { "type": "integer", "minimum": 0 }, "SAME_MATCH_COMBINATION": { "type": "integer", "minimum": 0 }, "total": { "type": "integer", "minimum": 1 }, "maximumPerFixture": { "type": "integer", "minimum": 1, "maximum": 3 } } },
+        "semantic": { "type": "object", "additionalProperties": false, "required": ["projected", "ou25Ready", "doubleChanceReady"], "properties": { "projected": { "type": "integer", "minimum": 1 }, "ou25Ready": { "type": "integer", "minimum": 0 }, "doubleChanceReady": { "type": "integer", "minimum": 0 } } },
+        "availableOdds": { "const": 0 }, "marketValueEvaluated": { "const": 0 }, "outcomeReads": { "const": 0 }, "ranking": { "const": 0 }, "bets": { "const": 0 }, "multiMatchCombinations": { "const": 0 }
+      }
+    }
+  }
+}

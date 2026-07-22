@@ -1,0 +1,28 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "quote-request-plan/1.0",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["contractVersion", "prospectiveRunId", "sportsDate", "frozenAt", "quotePlanHash", "requests"],
+  "properties": {
+    "contractVersion": { "const": "quote-request-plan/1.0" },
+    "prospectiveRunId": { "$ref": "#/$defs/id" },
+    "sportsDate": { "const": "2026-07-23" },
+    "frozenAt": { "type": "string", "format": "date-time" },
+    "quotePlanHash": { "$ref": "#/$defs/hash" },
+    "requests": { "type": "array", "items": { "$ref": "#/$defs/request" } }
+  },
+  "$defs": {
+    "id": { "type": "string", "minLength": 1 },
+    "hash": { "type": "string", "pattern": "^[a-f0-9]{64}$" },
+    "fixture": { "type": "object", "additionalProperties": false, "required": ["forebetObservationId", "statareaRowId", "homeTeamRaw", "awayTeamRaw", "competitionRaw", "countryRaw", "scheduledKickoffRaw"], "properties": { "forebetObservationId": { "$ref": "#/$defs/id" }, "statareaRowId": { "$ref": "#/$defs/id" }, "homeTeamRaw": { "$ref": "#/$defs/id" }, "awayTeamRaw": { "$ref": "#/$defs/id" }, "competitionRaw": { "type": ["string", "null"] }, "countryRaw": { "type": ["string", "null"] }, "scheduledKickoffRaw": { "type": ["string", "null"] } } },
+    "request": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["id", "prospectiveRunId", "fixtureAssessmentId", "matchDecisionId", "sportsDate", "fixtureIdentityRaw", "homeTeamRaw", "awayTeamRaw", "competitionRaw", "countryRaw", "scheduledKickoffRaw", "family", "internalMarketCode", "marketComponents", "prePricePriorityScore", "prePricePriorityClass", "prePriceSelectionStatus", "quoteRequired", "bookmaker", "bookmakerMarketCode", "bookmakerMarketLabel", "availableOdds", "priceStatus", "marketValueStatus", "warnings"],
+      "properties": {
+        "id": { "$ref": "#/$defs/id" }, "prospectiveRunId": { "$ref": "#/$defs/id" }, "fixtureAssessmentId": { "$ref": "#/$defs/id" }, "matchDecisionId": { "$ref": "#/$defs/id" }, "sportsDate": { "const": "2026-07-23" }, "fixtureIdentityRaw": { "$ref": "#/$defs/fixture" }, "homeTeamRaw": { "$ref": "#/$defs/id" }, "awayTeamRaw": { "$ref": "#/$defs/id" }, "competitionRaw": { "type": ["string", "null"] }, "countryRaw": { "type": ["string", "null"] }, "scheduledKickoffRaw": { "type": ["string", "null"] }, "family": { "enum": ["DOUBLE_CHANCE", "OU25", "SAME_MATCH_COMBINATION"] }, "internalMarketCode": { "$ref": "#/$defs/id" }, "marketComponents": { "type": "array", "minItems": 1, "maxItems": 2, "items": { "$ref": "#/$defs/id" } }, "prePricePriorityScore": { "type": "number", "minimum": 0, "maximum": 100 }, "prePricePriorityClass": { "enum": ["HIGH", "INTERESTING", "TRACK", "DO_NOT_PRIORITIZE"] }, "prePriceSelectionStatus": { "enum": ["PREFERRED", "PROVISIONAL", "NONE"] }, "quoteRequired": { "const": true }, "bookmaker": { "const": "APOSTALA" }, "bookmakerMarketCode": { "const": "UNRESOLVED" }, "bookmakerMarketLabel": { "const": "UNRESOLVED" }, "availableOdds": { "type": "null" }, "priceStatus": { "const": "NOT_CAPTURED" }, "marketValueStatus": { "const": "UNKNOWN" }, "warnings": { "type": "array", "items": { "type": "string" } }
+      }
+    }
+  }
+}

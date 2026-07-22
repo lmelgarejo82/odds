@@ -35,7 +35,11 @@
     "validate:historical-analysis-exports": "tsx scripts/validate-historical-analysis-exports.ts",
     "assess:market-priority": "tsx scripts/assess-market-priority.ts",
     "audit:market-priority": "tsx scripts/audit-market-priority.ts",
-    "validate:market-priority-exports": "tsx scripts/validate-market-priority-exports.ts"
+    "validate:market-priority-exports": "tsx scripts/validate-market-priority-exports.ts",
+    "audit:market-priority-dominance": "tsx scripts/audit-market-priority-dominance.ts",
+    "run:prospective-shadow": "tsx scripts/run-prospective-shadow.ts",
+    "validate:prospective-exports": "tsx scripts/validate-prospective-exports.ts",
+    "audit:prospective-shadow": "tsx scripts/audit-prospective-shadow.ts"
   },
   "prisma": {
     "seed": "tsx prisma/seed.ts"

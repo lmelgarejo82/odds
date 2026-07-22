@@ -142,9 +142,9 @@ describe("guardas y fronteras B008", () => {
   it("bloquea red", async () => await expect(withMarketPriorityOfflineGuard(async () => fetch("https://example.com"))).rejects.toThrow(/NETWORK_BLOCKED/));
   it("el application service no menciona modelos de outcome", () => { const body = source("src/application/assess-market-priority.ts"); expect(body).not.toMatch(/fixtureOutcome|outcomeEvidence|matchResult/); });
   it("no depende de Apostala ni x2-ht-lab", () => { const body = source("package.json"); expect(body.toLowerCase()).not.toContain("apostala"); expect(body).not.toContain("x2-ht-lab"); });
-  it("B009 no existe", () => {
+  it("B010 no existe", () => {
     const trackedSources = ["src", "scripts", "prisma"].flatMap((directory) => readdirSync(join(root, directory), { recursive: true }).map((path) => `${directory}/${String(path)}`));
-    expect([...trackedSources, source("package.json")].join("\n")).not.toMatch(/(?:^|[\\/])b009(?:[\\/.-]|$)/i);
+    expect([...trackedSources, source("package.json")].join("\n")).not.toMatch(/(?:^|[\\/])b010(?:[\\/.-]|$)/i);
   });
   it("la UI contiene textos obligatorios", () => { const body = source("src/components/market-priority-status.tsx"); expect(body).toContain("La línea seleccionada es una preferencia por evidencia."); expect(body).toContain("No confirma valor de mercado porque la cuota todavía no fue evaluada."); });
   it("la UI no muestra evaluación del resultado", () => { const body = source("src/components/market-priority-status.tsx"); expect(body).not.toMatch(/HIT|MISS|rentabilidad|stake|ranking diario/i); });

@@ -130,6 +130,7 @@ enum MatchRunType {
   PRIMARY
   STABILITY_DIAGNOSTIC
   HISTORICAL_DATASET
+  PROSPECTIVE_SHADOW
 }
 
 enum HistoricalPartition {
@@ -1329,6 +1330,173 @@ model MarketPriorityAuditEvent {
   createdAt       DateTime                     @default(now())
   policy          MarketPriorityPolicy?        @relation(fields: [policyId], references: [id], onDelete: Restrict)
   assessmentRun   MarketPriorityAssessmentRun? @relation(fields: [assessmentRunId], references: [id], onDelete: Restrict)
+
+  @@index([eventType, createdAt])
+}
+
+model ProspectiveShadowRun {
+  id                         String                          @id
+  sportsDate                 DateTime
+  forebetSnapshotId          String
+  statareaSnapshotId         String
+  matchRunId                 String
+  matcherVersion             String
+  normalizerVersion          String
+  matcherConfigurationHash   String
+  registryHash               String
+  historicalAnalysisSpecHash String
+  priorityPolicyHash         String
+  mode                       String
+  status                     String
+  outcomeEvaluationEnabled   Boolean                         @default(false)
+  priceEvaluationEnabled     Boolean                         @default(false)
+  frozenBeforeOutcome        Boolean                         @default(true)
+  frozenAt                   DateTime
+  fixtureCount               Int
+  countsJson                 String
+  warningsJson               String
+  runHash                    String                          @unique
+  exportPath                 String
+  networkRequestCount        Int                             @default(0)
+  outcomeReadCount           Int                             @default(0)
+  quoteCaptureCount          Int                             @default(0)
+  createdAt                  DateTime                        @default(now())
+  attempts                   ProspectiveShadowAttempt[]
+  semanticProjections        ProspectiveSemanticProjection[]
+  candidates                 ProspectiveCandidateSnapshot[]
+  fixtureAssessments         ProspectiveFixtureAssessment[]
+  quoteRequests              QuoteRequestPlan[]
+  auditEvents                ProspectiveAuditEvent[]
+
+  @@unique([sportsDate, forebetSnapshotId, statareaSnapshotId, matcherVersion, normalizerVersion, matcherConfigurationHash, registryHash, priorityPolicyHash, mode])
+  @@index([sportsDate, status])
+}
+
+model ProspectiveShadowAttempt {
+  id                  String               @id @default(cuid())
+  prospectiveRunId    String
+  status              String
+  networkRequestCount Int                  @default(0)
+  outcomeReadCount    Int                  @default(0)
+  quoteCaptureCount   Int                  @default(0)
+  contextJson         String
+  createdAt           DateTime             @default(now())
+  run                 ProspectiveShadowRun @relation(fields: [prospectiveRunId], references: [id], onDelete: Restrict)
+
+  @@index([prospectiveRunId, status])
+}
+
+model ProspectiveSemanticProjection {
+  id                          String               @id
+  prospectiveRunId            String
+  rawRowId                    String
+  sourceHomeWinPercent        Decimal?
+  sourceDrawPercent           Decimal?
+  sourceAwayWinPercent        Decimal?
+  sourceDoubleChance1XPercent Decimal?
+  sourceDoubleChanceX2Percent Decimal?
+  sourceDoubleChance12Percent Decimal?
+  sourceOver25Percent         Decimal?
+  sourceUnder25Percent        Decimal?
+  ou25SemanticReady           Boolean
+  doubleChanceSemanticReady   Boolean
+  qualityStatus               String
+  warningsJson                String
+  createdAt                   DateTime             @default(now())
+  run                         ProspectiveShadowRun @relation(fields: [prospectiveRunId], references: [id], onDelete: Restrict)
+
+  @@unique([prospectiveRunId, rawRowId])
+  @@index([prospectiveRunId, qualityStatus])
+}
+
+model ProspectiveCandidateSnapshot {
+  id                      String               @id
+  prospectiveRunId        String
+  matchDecisionId         String
+  family                  String
+  marketCode              String
+  componentsJson          String
+  signalScore             Decimal
+  historicalEvidenceScore Decimal
+  dataQualityScore        Decimal
+  finalPriorityScore      Decimal
+  priorityClass           String
+  blocked                 Boolean
+  payloadJson             String
+  createdAt               DateTime             @default(now())
+  run                     ProspectiveShadowRun @relation(fields: [prospectiveRunId], references: [id], onDelete: Restrict)
+
+  @@unique([prospectiveRunId, matchDecisionId, family, marketCode])
+  @@index([prospectiveRunId, family, priorityClass])
+}
+
+model ProspectiveFixtureAssessment {
+  id                            String               @id
+  prospectiveRunId              String
+  matchDecisionId               String
+  sportsDate                    DateTime
+  fixtureIdentityJson           String
+  dcCandidateId                 String?
+  ouCandidateId                 String?
+  combinationCandidateId        String?
+  prePricePreferenceCandidateId String?
+  prePriceTopCandidateId        String?
+  prePriceSecondCandidateId     String?
+  prePriceSelectionStatus       String
+  prePriceScoreMargin           Decimal?
+  priceEvaluationStatus         String
+  decisionFrozenAt              DateTime
+  warningsJson                  String
+  contractJson                  String
+  createdAt                     DateTime             @default(now())
+  run                           ProspectiveShadowRun @relation(fields: [prospectiveRunId], references: [id], onDelete: Restrict)
+  quoteRequests                 QuoteRequestPlan[]
+
+  @@unique([prospectiveRunId, matchDecisionId])
+  @@index([prospectiveRunId, prePriceSelectionStatus])
+}
+
+model QuoteRequestPlan {
+  id                      String                       @id
+  prospectiveRunId        String
+  fixtureAssessmentId     String
+  matchDecisionId         String
+  sportsDate              DateTime
+  fixtureIdentityRawJson  String
+  homeTeamRaw             String
+  awayTeamRaw             String
+  competitionRaw          String?
+  countryRaw              String?
+  scheduledKickoffRaw     String?
+  family                  String
+  internalMarketCode      String
+  componentsJson          String
+  bookmaker               String
+  bookmakerMarketCode     String
+  bookmakerMarketLabel    String
+  prePricePriorityScore   Decimal
+  prePricePriorityClass   String
+  prePriceSelectionStatus String
+  quoteRequired           Boolean
+  priceStatus             String
+  availableOdds           Decimal?
+  marketValueStatus       String
+  warningsJson            String
+  createdAt               DateTime                     @default(now())
+  run                     ProspectiveShadowRun         @relation(fields: [prospectiveRunId], references: [id], onDelete: Restrict)
+  fixtureAssessment       ProspectiveFixtureAssessment @relation(fields: [fixtureAssessmentId], references: [id], onDelete: Restrict)
+
+  @@unique([prospectiveRunId, fixtureAssessmentId, family])
+  @@index([prospectiveRunId, family])
+}
+
+model ProspectiveAuditEvent {
+  id               String                @id @default(cuid())
+  prospectiveRunId String?
+  eventType        String
+  contextJson      String
+  createdAt        DateTime              @default(now())
+  run              ProspectiveShadowRun? @relation(fields: [prospectiveRunId], references: [id], onDelete: Restrict)
 
   @@index([eventType, createdAt])
 }

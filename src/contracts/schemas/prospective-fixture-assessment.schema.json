@@ -1,0 +1,22 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "prospective-fixture-assessment/1.0",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["contractVersion", "prospectiveRunId", "assessmentSetHash", "assessments"],
+  "properties": {
+    "contractVersion": { "const": "prospective-fixture-assessment/1.0" },
+    "prospectiveRunId": { "$ref": "#/$defs/id" },
+    "assessmentSetHash": { "$ref": "#/$defs/hash" },
+    "assessments": { "type": "array", "minItems": 1, "items": { "$ref": "#/$defs/assessment" } }
+  },
+  "$defs": {
+    "id": { "type": "string", "minLength": 1 },
+    "hash": { "type": "string", "pattern": "^[a-f0-9]{64}$" },
+    "class": { "enum": ["HIGH", "INTERESTING", "TRACK", "DO_NOT_PRIORITIZE"] },
+    "family": { "enum": ["DOUBLE_CHANCE", "OU25", "SAME_MATCH_COMBINATION"] },
+    "preference": { "type": ["object", "null"], "additionalProperties": false, "required": ["candidateId", "family", "marketCode", "score", "priorityClass"], "properties": { "candidateId": { "$ref": "#/$defs/id" }, "family": { "$ref": "#/$defs/family" }, "marketCode": { "$ref": "#/$defs/id" }, "score": { "type": "number", "minimum": 0, "maximum": 100 }, "priorityClass": { "$ref": "#/$defs/class" } } },
+    "fixture": { "type": "object", "additionalProperties": false, "required": ["forebetObservationId", "statareaRowId", "homeTeamRaw", "awayTeamRaw", "competitionRaw", "countryRaw", "scheduledKickoffRaw"], "properties": { "forebetObservationId": { "$ref": "#/$defs/id" }, "statareaRowId": { "$ref": "#/$defs/id" }, "homeTeamRaw": { "$ref": "#/$defs/id" }, "awayTeamRaw": { "$ref": "#/$defs/id" }, "competitionRaw": { "type": ["string", "null"] }, "countryRaw": { "type": ["string", "null"] }, "scheduledKickoffRaw": { "type": ["string", "null"] } } },
+    "assessment": { "type": "object", "additionalProperties": false, "required": ["id", "prospectiveRunId", "matchDecisionId", "sportsDate", "fixtureIdentity", "dcCandidateId", "ouCandidateId", "combinationCandidateId", "prePricePreference", "prePriceSecondAlternative", "prePriceSelectionStatus", "prePriceScoreMargin", "priceEvaluationStatus", "decisionFrozenAt", "warnings"], "properties": { "id": { "$ref": "#/$defs/id" }, "prospectiveRunId": { "$ref": "#/$defs/id" }, "matchDecisionId": { "$ref": "#/$defs/id" }, "sportsDate": { "const": "2026-07-23" }, "fixtureIdentity": { "$ref": "#/$defs/fixture" }, "dcCandidateId": { "type": ["string", "null"] }, "ouCandidateId": { "type": ["string", "null"] }, "combinationCandidateId": { "type": ["string", "null"] }, "prePricePreference": { "$ref": "#/$defs/preference" }, "prePriceSecondAlternative": { "$ref": "#/$defs/preference" }, "prePriceSelectionStatus": { "enum": ["PREFERRED", "PROVISIONAL", "NONE"] }, "prePriceScoreMargin": { "type": ["number", "null"], "minimum": 0, "maximum": 100 }, "priceEvaluationStatus": { "const": "NOT_CAPTURED" }, "decisionFrozenAt": { "type": "string", "format": "date-time" }, "warnings": { "type": "array", "items": { "type": "string" } } } }
+  }
+}
