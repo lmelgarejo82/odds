@@ -1,0 +1,436 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "statarea-daily-capture.schema.json",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "contractVersion",
+    "source",
+    "requestedDate",
+    "captureAttempt",
+    "snapshot",
+    "parserVersion",
+    "counts",
+    "rows",
+    "rejectedRows",
+    "rawHeaders",
+    "semanticRegistry",
+    "warnings",
+    "qualityStatus"
+  ],
+  "properties": {
+    "contractVersion": {
+      "const": "1.0"
+    },
+    "source": {
+      "const": "STATAREA"
+    },
+    "requestedDate": {
+      "type": "string",
+      "format": "date"
+    },
+    "captureAttempt": {
+      "$ref": "#/$defs/attempt"
+    },
+    "snapshot": {
+      "$ref": "#/$defs/snapshot"
+    },
+    "parserVersion": {
+      "type": "string",
+      "minLength": 1
+    },
+    "counts": {
+      "$ref": "#/$defs/counts"
+    },
+    "rows": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/row"
+      }
+    },
+    "rejectedRows": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/rejection"
+      }
+    },
+    "rawHeaders": {
+      "type": "array",
+      "minItems": 12,
+      "maxItems": 12,
+      "items": {
+        "type": "string",
+        "maxLength": 20
+      }
+    },
+    "semanticRegistry": {
+      "type": "array",
+      "minItems": 12,
+      "maxItems": 12,
+      "items": {
+        "$ref": "#/$defs/semantic"
+      }
+    },
+    "warnings": {
+      "type": "array",
+      "items": {
+        "type": "string",
+        "maxLength": 300
+      }
+    },
+    "qualityStatus": {
+      "enum": [
+        "CONTROLLED",
+        "PARTIAL"
+      ]
+    }
+  },
+  "$defs": {
+    "semanticStatus": {
+      "enum": [
+        "VERIFIED",
+        "STRUCTURALLY_MAPPED",
+        "UNVERIFIED",
+        "CONFLICTING",
+        "NOT_APPLICABLE"
+      ]
+    },
+    "deferredRule": {
+      "if": {
+        "type": "object",
+        "properties": {
+          "headerRaw": {
+            "enum": [
+              "TIP",
+              "1.5",
+              "2.5",
+              "3.5",
+              "BTS",
+              "OTS"
+            ]
+          }
+        },
+        "required": [
+          "headerRaw"
+        ]
+      },
+      "then": {
+        "type": "object",
+        "properties": {
+          "semanticStatus": {
+            "const": "UNVERIFIED"
+          }
+        }
+      }
+    },
+    "attempt": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "status",
+        "requestedUrl",
+        "finalUrl",
+        "hostname",
+        "httpStatus",
+        "contentType",
+        "capturedAt",
+        "byteSize"
+      ],
+      "properties": {
+        "status": {
+          "enum": [
+            "SUCCEEDED",
+            "PARTIAL",
+            "REUSED"
+          ]
+        },
+        "requestedUrl": {
+          "type": "string",
+          "format": "uri"
+        },
+        "finalUrl": {
+          "type": "string",
+          "format": "uri"
+        },
+        "hostname": {
+          "const": "www.statarea.com"
+        },
+        "httpStatus": {
+          "type": "integer"
+        },
+        "contentType": {
+          "type": "string",
+          "maxLength": 100
+        },
+        "capturedAt": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "byteSize": {
+          "type": "integer",
+          "minimum": 1
+        }
+      }
+    },
+    "snapshot": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "id",
+        "contentHash",
+        "evidencePath",
+        "exportPath"
+      ],
+      "properties": {
+        "id": {
+          "type": "string",
+          "minLength": 1
+        },
+        "contentHash": {
+          "type": "string",
+          "pattern": "^[a-f0-9]{64}$"
+        },
+        "evidencePath": {
+          "type": "string",
+          "pattern": "^var/evidence/statarea/"
+        },
+        "exportPath": {
+          "type": "string",
+          "pattern": "^var/exports/statarea/"
+        }
+      }
+    },
+    "counts": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "rowsFound",
+        "valid",
+        "rejected",
+        "duplicates",
+        "warnings",
+        "unverifiedColumns"
+      ],
+      "properties": {
+        "rowsFound": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "valid": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "rejected": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "duplicates": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "warnings": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "unverifiedColumns": {
+          "type": "integer",
+          "minimum": 0
+        }
+      }
+    },
+    "column": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "key",
+        "headerRaw",
+        "valueRaw",
+        "ordinal",
+        "semanticStatus",
+        "semanticEvidence",
+        "normalizedValue",
+        "classes"
+      ],
+      "properties": {
+        "key": {
+          "type": "string",
+          "maxLength": 50
+        },
+        "headerRaw": {
+          "type": "string",
+          "maxLength": 20
+        },
+        "valueRaw": {
+          "type": "string",
+          "maxLength": 100
+        },
+        "ordinal": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "semanticStatus": {
+          "$ref": "#/$defs/semanticStatus"
+        },
+        "semanticEvidence": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "maxLength": 300
+        },
+        "normalizedValue": {
+          "type": "null"
+        },
+        "classes": {
+          "type": "array",
+          "maxItems": 10,
+          "items": {
+            "type": "string",
+            "maxLength": 80
+          }
+        }
+      },
+      "allOf": [
+        {
+          "$ref": "#/$defs/deferredRule"
+        }
+      ]
+    },
+    "row": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "sourceRowKey",
+        "rowDateRaw",
+        "kickoffRaw",
+        "competitionRaw",
+        "countryRaw",
+        "categoryRaw",
+        "homeTeamRaw",
+        "awayTeamRaw",
+        "orientation",
+        "rawColumns",
+        "semanticStatus",
+        "warnings"
+      ],
+      "properties": {
+        "sourceRowKey": {
+          "type": "string",
+          "pattern": "^[a-f0-9]{64}$"
+        },
+        "rowDateRaw": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "maxLength": 10
+        },
+        "kickoffRaw": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "maxLength": 20
+        },
+        "competitionRaw": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "maxLength": 300
+        },
+        "countryRaw": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "maxLength": 100
+        },
+        "categoryRaw": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "maxLength": 100
+        },
+        "homeTeamRaw": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 300
+        },
+        "awayTeamRaw": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 300
+        },
+        "orientation": {
+          "const": "HOST_GUEST_DOM"
+        },
+        "rawColumns": {
+          "type": "array",
+          "minItems": 12,
+          "maxItems": 12,
+          "items": {
+            "$ref": "#/$defs/column"
+          }
+        },
+        "semanticStatus": {
+          "const": "STRUCTURALLY_MAPPED"
+        },
+        "warnings": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "maxLength": 200
+          }
+        }
+      }
+    },
+    "rejection": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "rowIndex",
+        "reasonCode"
+      ],
+      "properties": {
+        "rowIndex": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "reasonCode": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 100
+        }
+      }
+    },
+    "semantic": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "headerRaw",
+        "semanticStatus",
+        "evidence"
+      ],
+      "properties": {
+        "headerRaw": {
+          "type": "string",
+          "maxLength": 20
+        },
+        "semanticStatus": {
+          "$ref": "#/$defs/semanticStatus"
+        },
+        "evidence": {
+          "type": "string",
+          "maxLength": 300
+        }
+      },
+      "allOf": [
+        {
+          "$ref": "#/$defs/deferredRule"
+        }
+      ]
+    }
+  }
+}

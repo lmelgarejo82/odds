@@ -15,7 +15,10 @@
     "db:generate": "prisma generate",
     "db:migrate": "prisma migrate dev",
     "db:seed": "prisma db seed",
-    "capture:forebet": "tsx scripts/capture-forebet.ts"
+    "capture:forebet": "tsx scripts/capture-forebet.ts",
+    "capture:statarea": "tsx scripts/capture-statarea.ts",
+    "verify:statarea-idempotency": "tsx scripts/replay-statarea-evidence.ts",
+    "validate:statarea-export": "tsx scripts/validate-statarea-export.ts"
   },
   "prisma": {
     "seed": "tsx prisma/seed.ts"

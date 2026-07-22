@@ -43,6 +43,7 @@ yarn-error.log*
 /data/exports/**
 /evidencias/
 /var/evidence/
+/var/exports/
 *.tmp
 *.temp
 

@@ -106,6 +106,20 @@ enum ForebetOuSide {
   UNDER
 }
 
+enum StatareaSemanticStatus {
+  VERIFIED
+  STRUCTURALLY_MAPPED
+  UNVERIFIED
+  CONFLICTING
+  NOT_APPLICABLE
+}
+
+enum StatareaRowStatus {
+  VALID
+  WARNING
+  REJECTED
+}
+
 model SourceArtifact {
   id                String                   @id @default(cuid())
   source            Source
@@ -207,6 +221,97 @@ model ForebetRowRejection {
 }
 
 model ForebetCaptureAuditEvent {
+  id            String   @id @default(cuid())
+  eventType     String
+  requestedDate DateTime
+  snapshotId    String?
+  detailsJson   String
+  createdAt     DateTime @default(now())
+}
+
+model StatareaCaptureAttempt {
+  id            String                   @id @default(cuid())
+  requestedDate DateTime
+  requestedUrl  String
+  finalUrl      String?
+  hostname      String?
+  capturedAt    DateTime
+  httpStatus    Int?
+  contentType   String?
+  byteSize      Int?
+  contentHash   String?
+  parserVersion String
+  status        ForebetCaptureStatus
+  warning       String?
+  errorCode     String?
+  snapshotId    String?
+  createdAt     DateTime                 @default(now())
+  snapshot      StatareaCaptureSnapshot? @relation(fields: [snapshotId], references: [id])
+}
+
+model StatareaCaptureSnapshot {
+  id                   String                   @id @default(cuid())
+  requestedDate        DateTime
+  contentHash          String
+  parserVersion        String
+  evidencePath         String
+  exportPath           String
+  rawHeadersJson       String
+  semanticRegistryJson String
+  rowsFound            Int
+  validRows            Int
+  rejectedRows         Int
+  duplicateRows        Int
+  warningCount         Int
+  createdAt            DateTime                 @default(now())
+  attempts             StatareaCaptureAttempt[]
+  rows                 StatareaRawRow[]
+  rejections           StatareaRowRejection[]
+
+  @@unique([requestedDate, contentHash, parserVersion])
+}
+
+model StatareaRawRow {
+  id                       String                  @id @default(cuid())
+  snapshotId               String
+  source                   Source                  @default(STATAREA)
+  requestedDate            DateTime
+  rowDateRaw               String?
+  kickoffRaw               String?
+  competitionRaw           String?
+  countryRaw               String?
+  categoryRaw              String?
+  homeTeamRaw              String
+  awayTeamRaw              String
+  orientation              String
+  rowTextRaw               String?
+  rawColumnsJson           String
+  structuralAttributesJson String
+  sourceRowKey             String
+  parserVersion            String
+  parseStatus              StatareaRowStatus
+  semanticStatus           StatareaSemanticStatus
+  warningsJson             String
+  createdAt                DateTime                @default(now())
+  snapshot                 StatareaCaptureSnapshot @relation(fields: [snapshotId], references: [id])
+
+  @@unique([snapshotId, sourceRowKey])
+}
+
+model StatareaRowRejection {
+  id           String                  @id @default(cuid())
+  snapshotId   String
+  rowIndex     Int
+  sourceRowKey String?
+  reasonCode   String
+  detailsJson  String
+  createdAt    DateTime                @default(now())
+  snapshot     StatareaCaptureSnapshot @relation(fields: [snapshotId], references: [id])
+
+  @@unique([snapshotId, rowIndex])
+}
+
+model StatareaCaptureAuditEvent {
   id            String   @id @default(cuid())
   eventType     String
   requestedDate DateTime
