@@ -1,0 +1,24 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "historical-pattern-evaluation/1.0",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["contractVersion", "specHash", "evaluationRunId", "partition", "evaluations", "disclaimer"],
+  "properties": {
+    "contractVersion": { "const": "historical-pattern-evaluation/1.0" },
+    "specHash": { "type": "string", "pattern": "^[a-f0-9]{64}$" },
+    "evaluationRunId": { "type": "string", "minLength": 1 },
+    "partition": { "enum": ["DISCOVERY", "VALIDATION", "ALL_DESCRIPTIVE"] },
+    "evaluations": { "type": "array", "items": { "$ref": "#/$defs/evaluation" } },
+    "disclaimer": { "const": "La cuota teórica no representa rentabilidad real ni cuota de valor." }
+  },
+  "$defs": {
+    "evaluation": {
+      "type": "object", "additionalProperties": false,
+      "required": ["patternCode", "side", "segment", "total", "evaluable", "hits", "misses", "hitRate", "wilsonLower", "wilsonUpper", "brierScore", "theoreticalBreakEvenOdds", "sampleClass", "warnings"],
+      "properties": {
+        "patternCode": { "type": "string", "minLength": 1 }, "side": { "type": "string", "minLength": 1 }, "segment": { "type": "string", "minLength": 1 }, "total": { "type": "integer", "minimum": 0 }, "evaluable": { "type": "integer", "minimum": 0 }, "hits": { "type": "integer", "minimum": 0 }, "misses": { "type": "integer", "minimum": 0 }, "hitRate": { "type": ["number", "null"], "minimum": 0, "maximum": 1 }, "wilsonLower": { "type": ["number", "null"], "minimum": 0, "maximum": 1 }, "wilsonUpper": { "type": ["number", "null"], "minimum": 0, "maximum": 1 }, "brierScore": { "type": ["number", "null"], "minimum": 0, "maximum": 1 }, "theoreticalBreakEvenOdds": { "type": ["number", "null"], "exclusiveMinimum": 0 }, "sampleClass": { "enum": ["INSUFFICIENT_SAMPLE", "SMALL_SAMPLE", "REGULAR_SAMPLE"] }, "warnings": { "type": "array", "items": { "type": "string" } }
+      }
+    }
+  }
+}

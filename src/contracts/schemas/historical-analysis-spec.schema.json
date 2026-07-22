@@ -1,0 +1,128 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "historical-analysis-spec/1.0",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["contractVersion", "code", "version", "status", "dataset", "partitions", "outcomePolicy", "extractors", "engineVersion", "patterns", "calibrationBands", "favoriteSegments", "predictedGoalDifferenceSegments", "sampleRules", "warningRules", "stabilityRules", "consensusLiftRules", "metrics", "prohibitions"],
+  "properties": {
+    "contractVersion": { "const": "historical-analysis-spec/1.0" },
+    "code": { "const": "OU25-HISTORICAL-MARKET-ANALYSIS" },
+    "version": { "const": "1.0.0" },
+    "status": { "const": "FROZEN_SPEC" },
+    "dataset": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["id", "code", "version", "manifestHash", "registryHash"],
+      "properties": {
+        "id": { "const": "ou25-july-2026-v1" },
+        "code": { "const": "OU25-JULY-2026-V1" },
+        "version": { "const": "1.0.0" },
+        "manifestHash": { "const": "b651152816688759d54486ebc4cdac11704dd9e287818dec6b7f935c185ed105" },
+        "registryHash": { "const": "735762986050e6fc0d763c180b23cf7a28439ca92fd6ea934d4725531f9650d3" }
+      }
+    },
+    "partitions": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["discovery", "validation"],
+      "properties": {
+        "discovery": { "$ref": "#/$defs/discovery" },
+        "validation": { "$ref": "#/$defs/validation" }
+      }
+    },
+    "outcomePolicy": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["version", "principalStatus", "sensitivityStatuses", "excludedStatuses", "over25MinimumTotalGoals", "under25MaximumTotalGoals", "permittedScorePattern", "specialAnnotations"],
+      "properties": {
+        "version": { "const": "historical-outcome-policy/1.0.0" },
+        "principalStatus": { "const": "AGREED" },
+        "sensitivityStatuses": { "const": ["FOREBET_ONLY", "STATAREA_ONLY"] },
+        "excludedStatuses": { "const": ["CONFLICT", "MISSING", "UNSUPPORTED"] },
+        "over25MinimumTotalGoals": { "const": 3 },
+        "under25MaximumTotalGoals": { "const": 2 },
+        "permittedScorePattern": { "const": "^(0|[1-9]\\d*)-(0|[1-9]\\d*)$" },
+        "specialAnnotations": { "const": "REJECT_WITHOUT_ASSUMPTION" }
+      }
+    },
+    "extractors": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["forebet", "statareaLegacy", "statareaModernAllowed"],
+      "properties": {
+        "forebet": { "const": "forebet-result-extractor/1.0.0" },
+        "statareaLegacy": { "const": "statarea-legacy-result-extractor/1.0.0" },
+        "statareaModernAllowed": { "const": false }
+      }
+    },
+    "engineVersion": { "const": "historical-market-engine/1.0.0" },
+    "patterns": {
+      "type": "array",
+      "minItems": 19,
+      "maxItems": 19,
+      "items": { "$ref": "#/$defs/pattern" },
+      "allOf": [
+        { "contains": { "type": "object", "required": ["code", "threshold"], "properties": { "code": { "const": "OU25_CONSENSUS_60" }, "threshold": { "const": "60" } } } },
+        { "contains": { "type": "object", "required": ["code", "threshold"], "properties": { "code": { "const": "OU25_CONSENSUS_65" }, "threshold": { "const": "65" } } } },
+        { "contains": { "type": "object", "required": ["code", "threshold"], "properties": { "code": { "const": "OU25_CONSENSUS_70" }, "threshold": { "const": "70" } } } },
+        { "contains": { "type": "object", "required": ["code"], "properties": { "code": { "const": "FOREBET_OU25_CONTROL" } } } },
+        { "contains": { "type": "object", "required": ["code"], "properties": { "code": { "const": "STATAREA_OU25_CONTROL" } } } },
+        { "contains": { "type": "object", "required": ["code"], "properties": { "code": { "const": "OU25_CONSENSUS_SIMPLE" } } } },
+        { "contains": { "type": "object", "required": ["code"], "properties": { "code": { "const": "FOREBET_OVER_CONFLUENCE" } } } },
+        { "contains": { "type": "object", "required": ["code"], "properties": { "code": { "const": "FOREBET_UNDER_CONFLUENCE" } } } },
+        { "contains": { "type": "object", "required": ["code"], "properties": { "code": { "const": "DOUBLE_CHANCE_1X" } } } },
+        { "contains": { "type": "object", "required": ["code"], "properties": { "code": { "const": "DOUBLE_CHANCE_X2" } } } },
+        { "contains": { "type": "object", "required": ["code"], "properties": { "code": { "const": "DOUBLE_CHANCE_12" } } } },
+        { "contains": { "type": "object", "required": ["code"], "properties": { "code": { "const": "PREFERRED_DOUBLE_CHANCE" } } } },
+        { "contains": { "type": "object", "required": ["code"], "properties": { "code": { "const": "COMBO_1X_OVER_25" } } } },
+        { "contains": { "type": "object", "required": ["code"], "properties": { "code": { "const": "COMBO_1X_UNDER_25" } } } },
+        { "contains": { "type": "object", "required": ["code"], "properties": { "code": { "const": "COMBO_X2_OVER_25" } } } },
+        { "contains": { "type": "object", "required": ["code"], "properties": { "code": { "const": "COMBO_X2_UNDER_25" } } } },
+        { "contains": { "type": "object", "required": ["code"], "properties": { "code": { "const": "COMBO_12_OVER_25" } } } },
+        { "contains": { "type": "object", "required": ["code"], "properties": { "code": { "const": "COMBO_12_UNDER_25" } } } },
+        { "contains": { "type": "object", "required": ["code"], "properties": { "code": { "const": "PREFERRED_DC_PLUS_CONSENSUS_OU" } } } }
+      ]
+    },
+    "calibrationBands": {
+      "const": [
+        { "code": "0_49_99", "lower": "0.00", "upper": "49.99" },
+        { "code": "50_59_99", "lower": "50.00", "upper": "59.99" },
+        { "code": "60_69_99", "lower": "60.00", "upper": "69.99" },
+        { "code": "70_79_99", "lower": "70.00", "upper": "79.99" },
+        { "code": "80_89_99", "lower": "80.00", "upper": "89.99" },
+        { "code": "90_100", "lower": "90.00", "upper": "100.00" }
+      ]
+    },
+    "favoriteSegments": { "type": "object" },
+    "predictedGoalDifferenceSegments": { "const": ["0", "1", "2_PLUS"] },
+    "sampleRules": { "type": "array", "minItems": 3, "maxItems": 3 },
+    "warningRules": { "type": "object" },
+    "stabilityRules": { "type": "array", "minItems": 3, "maxItems": 3 },
+    "consensusLiftRules": { "type": "object" },
+    "metrics": { "type": "array", "minItems": 13, "maxItems": 13, "items": { "type": "string" } },
+    "prohibitions": { "type": "array", "minItems": 12, "maxItems": 12, "items": { "type": "string" }, "contains": { "const": "RESULTS_IN_SPEC" } }
+  },
+  "$defs": {
+    "discovery": {
+      "type": "object", "additionalProperties": false,
+      "required": ["code", "from", "to", "expectedMatched"],
+      "properties": { "code": { "const": "DISCOVERY" }, "from": { "const": "2026-07-01" }, "to": { "const": "2026-07-14" }, "expectedMatched": { "const": 64 } }
+    },
+    "validation": {
+      "type": "object", "additionalProperties": false,
+      "required": ["code", "from", "to", "expectedMatched"],
+      "properties": { "code": { "const": "VALIDATION" }, "from": { "const": "2026-07-15" }, "to": { "const": "2026-07-21" }, "expectedMatched": { "const": 34 } }
+    },
+    "pattern": {
+      "type": "object", "additionalProperties": false,
+      "required": ["code", "family", "side", "threshold", "rule"],
+      "properties": {
+        "code": { "enum": ["FOREBET_OU25_CONTROL", "STATAREA_OU25_CONTROL", "OU25_CONSENSUS_SIMPLE", "OU25_CONSENSUS_60", "OU25_CONSENSUS_65", "OU25_CONSENSUS_70", "FOREBET_OVER_CONFLUENCE", "FOREBET_UNDER_CONFLUENCE", "DOUBLE_CHANCE_1X", "DOUBLE_CHANCE_X2", "DOUBLE_CHANCE_12", "PREFERRED_DOUBLE_CHANCE", "COMBO_1X_OVER_25", "COMBO_1X_UNDER_25", "COMBO_X2_OVER_25", "COMBO_X2_UNDER_25", "COMBO_12_OVER_25", "COMBO_12_UNDER_25", "PREFERRED_DC_PLUS_CONSENSUS_OU"] },
+        "family": { "enum": ["OU25_SOURCE_CONTROL", "OU25_CONSENSUS", "FOREBET_CONFLUENCE", "DOUBLE_CHANCE", "SAME_MATCH_COMBINATION"] },
+        "side": { "type": ["string", "null"] },
+        "threshold": { "type": ["string", "null"] },
+        "rule": { "type": "object" }
+      }
+    }
+  }
+}

@@ -965,3 +965,193 @@ model SemanticAuditEvent {
 
   @@index([eventType, createdAt])
 }
+
+model HistoricalAnalysisSpec {
+  id                          String   @id @default(cuid())
+  code                        String
+  version                     String
+  datasetId                   String
+  manifestHash                String
+  registryHash                String
+  outcomePolicyVersion        String
+  engineVersion               String
+  specHash                    String
+  status                      String
+  canonicalSpecJson           String
+  resultEvidenceCountAtFreeze Int      @default(0)
+  createdAt                   DateTime @default(now())
+
+  @@unique([code, version, datasetId, manifestHash, registryHash, specHash])
+  @@index([code, version])
+}
+
+model PatternDefinition {
+  id                String   @id @default(cuid())
+  specId            String
+  code              String
+  family            String
+  side              String?
+  threshold         Decimal?
+  canonicalRuleJson String
+  createdAt         DateTime @default(now())
+
+  @@unique([specId, code])
+  @@index([specId, family])
+}
+
+model OutcomeExtractionRun {
+  id                    String   @id @default(cuid())
+  specId                String
+  datasetId             String
+  manifestHash          String
+  extractorVersionsJson String
+  status                String
+  countsJson            String
+  warningsJson          String
+  createdAt             DateTime @default(now())
+
+  @@unique([specId, datasetId, manifestHash, extractorVersionsJson])
+}
+
+model OutcomeExtractionAttempt {
+  id              String   @id @default(cuid())
+  specId          String
+  extractionRunId String?
+  status          String
+  contextJson     String
+  createdAt       DateTime @default(now())
+}
+
+model OutcomeEvidence {
+  id                String   @id @default(cuid())
+  extractionRunId   String
+  source            String
+  snapshotId        String
+  sourceRecordId    String
+  sportsDate        DateTime
+  rawResult         String?
+  rawHtResult       String?
+  homeGoals         Int?
+  awayGoals         Int?
+  parseStatus       String
+  reasonCode        String
+  warningsJson      String
+  extractorVersion  String
+  evidenceHash      String
+  createdAt         DateTime @default(now())
+
+  @@unique([extractionRunId, source, sourceRecordId, extractorVersion])
+  @@index([extractionRunId, sportsDate])
+  @@index([evidenceHash])
+}
+
+model FixtureOutcome {
+  id                         String   @id @default(cuid())
+  extractionRunId            String
+  matchDecisionId            String
+  forebetOutcomeEvidenceId   String?
+  statareaOutcomeEvidenceId  String?
+  reconciliationStatus       String
+  homeGoals                  Int?
+  awayGoals                  Int?
+  totalGoals                 Int?
+  result1X2                  String?
+  ou25Outcome                String?
+  doubleChance1XOutcome      Boolean?
+  doubleChanceX2Outcome      Boolean?
+  doubleChance12Outcome      Boolean?
+  partition                  HistoricalPartition
+  warningsJson               String
+  createdAt                  DateTime @default(now())
+
+  @@unique([extractionRunId, matchDecisionId])
+  @@index([extractionRunId, reconciliationStatus, partition])
+}
+
+model HistoricalEvaluationRun {
+  id              String   @id @default(cuid())
+  specId          String
+  extractionRunId String
+  datasetId       String
+  manifestHash    String
+  registryHash    String
+  engineVersion   String
+  status          String
+  countsJson      String
+  warningsJson    String
+  createdAt       DateTime @default(now())
+
+  @@unique([specId, extractionRunId, engineVersion])
+}
+
+model HistoricalEvaluationAttempt {
+  id              String   @id @default(cuid())
+  specId          String
+  extractionRunId String?
+  evaluationRunId String?
+  status          String
+  contextJson     String
+  createdAt       DateTime @default(now())
+}
+
+model PatternEvaluation {
+  id                       String   @id @default(cuid())
+  evaluationRunId          String
+  patternDefinitionId      String
+  partition                String
+  segment                  String
+  side                     String
+  total                    Int
+  evaluable                Int
+  hits                     Int
+  misses                   Int
+  hitRate                  Decimal?
+  wilsonLower              Decimal?
+  wilsonUpper              Decimal?
+  brierScore               Decimal?
+  theoreticalBreakEvenOdds Decimal?
+  retainedSampleRate       Decimal?
+  maxCountryShare          Decimal?
+  maxCompetitionShare      Decimal?
+  maxHitStreak             Int
+  maxMissStreak            Int
+  sampleClass              String
+  stabilityClass           String?
+  warningsJson             String
+  detailsJson              String
+  createdAt                DateTime @default(now())
+
+  @@unique([evaluationRunId, patternDefinitionId, partition, segment, side])
+  @@index([evaluationRunId, partition])
+}
+
+model CalibrationBucket {
+  id                       String   @id @default(cuid())
+  evaluationRunId          String
+  patternDefinitionId      String
+  partition                String
+  side                     String
+  lowerBound               Decimal
+  upperBound               Decimal
+  count                    Int
+  averageSourcePercent     Decimal?
+  observedFrequency        Decimal?
+  calibrationDifference    Decimal?
+  warningsJson             String
+  createdAt                DateTime @default(now())
+
+  @@unique([evaluationRunId, patternDefinitionId, partition, side, lowerBound, upperBound])
+  @@index([evaluationRunId, partition])
+}
+
+model HistoricalAnalysisAuditEvent {
+  id              String   @id @default(cuid())
+  specId          String?
+  extractionRunId String?
+  evaluationRunId String?
+  eventType       String
+  contextJson     String
+  createdAt       DateTime @default(now())
+
+  @@index([eventType, createdAt])
+}

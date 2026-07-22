@@ -1,0 +1,27 @@
+import { database } from "@/infrastructure/database";
+
+const pct = (value: { toNumber(): number } | null) => value === null ? "—" : `${(value.toNumber() * 100).toFixed(1)} %`;
+const decimal = (value: { toNumber(): number } | null) => value === null ? "—" : value.toNumber().toFixed(3);
+const families = {
+  ou: ["FOREBET_OU25_CONTROL", "STATAREA_OU25_CONTROL", "OU25_CONSENSUS_SIMPLE", "OU25_CONSENSUS_60", "OU25_CONSENSUS_65", "OU25_CONSENSUS_70", "FOREBET_OVER_CONFLUENCE", "FOREBET_UNDER_CONFLUENCE"],
+  dc: ["DOUBLE_CHANCE_1X", "DOUBLE_CHANCE_X2", "DOUBLE_CHANCE_12", "PREFERRED_DOUBLE_CHANCE"],
+};
+
+export async function HistoricalAnalysisStatus() {
+  const spec = await database.historicalAnalysisSpec.findFirst({ where: { code: "OU25-HISTORICAL-MARKET-ANALYSIS", version: "1.0.0" }, orderBy: { createdAt: "desc" } });
+  if (!spec) return <section className="panel empty-state"><span className="eyebrow">Análisis histórico</span><h2>Especificación pendiente</h2><p>La evaluación permanece cerrada hasta congelar la especificación analítica.</p></section>;
+  const extraction = await database.outcomeExtractionRun.findFirst({ where: { specId: spec.id }, orderBy: { createdAt: "desc" } });
+  const evaluation = extraction ? await database.historicalEvaluationRun.findFirst({ where: { specId: spec.id, extractionRunId: extraction.id }, orderBy: { createdAt: "desc" } }) : null;
+  if (!extraction || !evaluation) return <section className="panel empty-state"><span className="eyebrow">Análisis histórico</span><h2>{spec.status}</h2><p>Especificación {spec.version} congelada. La extracción offline todavía no fue ejecutada.</p><code>{spec.specHash}</code></section>;
+  const [outcomeGroups, rows, definitions] = await Promise.all([
+    database.fixtureOutcome.groupBy({ by: ["reconciliationStatus"], where: { extractionRunId: extraction.id }, _count: true }),
+    database.patternEvaluation.findMany({ where: { evaluationRunId: evaluation.id, segment: "ALL", partition: { in: ["DISCOVERY", "VALIDATION"] } }, orderBy: [{ partition: "asc" }, { patternDefinitionId: "asc" }, { side: "asc" }] }),
+    database.patternDefinition.findMany({ where: { specId: spec.id } }),
+  ]);
+  const count = (status: string) => outcomeGroups.find((group) => group.reconciliationStatus === status)?._count ?? 0;
+  const agreed = count("AGREED"); const definitionById = new Map(definitions.map((definition) => [definition.id, definition]));
+  const enriched = rows.map((row) => ({ ...row, code: definitionById.get(row.patternDefinitionId)!.code }));
+  const table = (title: string, selected: typeof enriched) => <section className="history-analysis-section"><div className="section-heading"><h2>{title}</h2><span className="date">Discovery y Validation separados</span></div><div className="analysis-table-wrap"><table className="analysis-table"><thead><tr><th>Patrón</th><th>Lado</th><th>Partición</th><th>n</th><th>HIT</th><th>MISS</th><th>Tasa</th><th>Wilson 95 %</th><th>Brier</th><th>Cuota teórica</th><th>Warnings</th></tr></thead><tbody>{selected.map((row) => <tr key={`${row.id}`}><td><code>{row.code}</code></td><td>{row.side}</td><td>{row.partition}</td><td>{row.evaluable}/{row.total}</td><td>{row.hits}</td><td>{row.misses}</td><td>{pct(row.hitRate)}</td><td>{pct(row.wilsonLower)}–{pct(row.wilsonUpper)}</td><td>{decimal(row.brierScore)}</td><td>{decimal(row.theoreticalBreakEvenOdds)}</td><td>{(JSON.parse(row.warningsJson) as string[]).join(", ") || "—"}</td></tr>)}</tbody></table></div></section>;
+  const combos = enriched.filter((row) => row.code.startsWith("COMBO_") || row.code === "PREFERRED_DC_PLUS_CONSENSUS_OU");
+  return <section className="panel historical-analysis-panel"><span className="eyebrow">Resultados reales · capa append-only</span><div className="section-heading"><div><h1>Análisis histórico</h1><p>OU25-HISTORICAL-MARKET-ANALYSIS · 1.0.0 · {spec.status}</p></div><span className="date">{spec.specHash.slice(0, 16)}…</span></div><section><h2>Calidad de resultados</h2><div className="metric-grid analysis-quality"><article className="metric"><span>MATCHED originales</span><strong>98</strong></article><article className="metric"><span>AGREED</span><strong>{agreed}</strong></article><article className="metric"><span>Forebet only</span><strong>{count("FOREBET_ONLY")}</strong></article><article className="metric"><span>Statarea only</span><strong>{count("STATAREA_ONLY")}</strong></article><article className="metric"><span>Conflictos</span><strong>{count("CONFLICT")}</strong></article><article className="metric"><span>Ausentes / no soportados</span><strong>{count("MISSING") + count("UNSUPPORTED")}</strong></article><article className="metric"><span>Muestra principal retenida</span><strong>{agreed}/98</strong></article></div></section>{table("Más/Menos 2.5", enriched.filter((row) => families.ou.includes(row.code)))}{table("Doble oportunidad", enriched.filter((row) => families.dc.includes(row.code)))}{table("Combinaciones del mismo partido", combos)}{table("Discovery y Validation", enriched.filter((row) => !combos.includes(row)))}<aside className="analysis-disclaimer"><p>Los porcentajes son valores publicados por las fuentes.</p><p>El análisis histórico no garantiza rendimiento futuro.</p><p>La cuota teórica no representa rentabilidad real.</p></aside><div className="actions semantic-actions"><button disabled>Ver mejores partidos</button><button disabled>Top Más 2.5</button><button disabled>Top Menos 2.5</button><button disabled>Seguimiento</button></div></section>;
+}

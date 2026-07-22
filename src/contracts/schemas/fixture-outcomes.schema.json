@@ -1,0 +1,32 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "fixture-outcomes/1.0",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["contractVersion", "spec", "dataset", "extractionRunId", "counts", "outcomes", "warnings"],
+  "properties": {
+    "contractVersion": { "const": "fixture-outcomes/1.0" },
+    "spec": { "type": "object", "additionalProperties": false, "required": ["code", "version", "specHash"], "properties": { "code": { "const": "OU25-HISTORICAL-MARKET-ANALYSIS" }, "version": { "const": "1.0.0" }, "specHash": { "$ref": "#/$defs/hash" } } },
+    "dataset": { "type": "object", "additionalProperties": false, "required": ["code", "manifestHash", "registryHash"], "properties": { "code": { "const": "OU25-JULY-2026-V1" }, "manifestHash": { "$ref": "#/$defs/hash" }, "registryHash": { "$ref": "#/$defs/hash" } } },
+    "extractionRunId": { "type": "string", "minLength": 1 },
+    "counts": { "type": "object", "additionalProperties": false, "required": ["total", "agreed", "forebetOnly", "statareaOnly", "conflict", "missing", "unsupported"], "properties": { "total": { "const": 98 }, "agreed": { "type": "integer", "minimum": 0 }, "forebetOnly": { "type": "integer", "minimum": 0 }, "statareaOnly": { "type": "integer", "minimum": 0 }, "conflict": { "type": "integer", "minimum": 0 }, "missing": { "type": "integer", "minimum": 0 }, "unsupported": { "type": "integer", "minimum": 0 } } },
+    "outcomes": { "type": "array", "minItems": 98, "maxItems": 98, "items": { "$ref": "#/$defs/outcome" } },
+    "warnings": { "type": "array", "items": { "type": "string" } }
+  },
+  "$defs": {
+    "hash": { "type": "string", "pattern": "^[a-f0-9]{64}$" },
+    "outcome": {
+      "type": "object", "additionalProperties": false,
+      "required": ["matchDecisionId", "partition", "reconciliationStatus", "forebetEvidenceId", "statareaEvidenceId", "homeGoals", "awayGoals", "totalGoals", "result1X2", "ou25Outcome", "doubleChance1XOutcome", "doubleChanceX2Outcome", "doubleChance12Outcome", "warnings"],
+      "properties": {
+        "matchDecisionId": { "type": "string", "minLength": 1 }, "partition": { "enum": ["DISCOVERY", "VALIDATION"] }, "reconciliationStatus": { "enum": ["AGREED", "FOREBET_ONLY", "STATAREA_ONLY", "CONFLICT", "MISSING", "UNSUPPORTED"] }, "forebetEvidenceId": { "type": ["string", "null"] }, "statareaEvidenceId": { "type": ["string", "null"] }, "homeGoals": { "type": ["integer", "null"], "minimum": 0 }, "awayGoals": { "type": ["integer", "null"], "minimum": 0 }, "totalGoals": { "type": ["integer", "null"], "minimum": 0 }, "result1X2": { "enum": ["HOME_WIN", "DRAW", "AWAY_WIN", null] }, "ou25Outcome": { "enum": ["OVER_25", "UNDER_25", null] }, "doubleChance1XOutcome": { "type": ["boolean", "null"] }, "doubleChanceX2Outcome": { "type": ["boolean", "null"] }, "doubleChance12Outcome": { "type": ["boolean", "null"] }, "warnings": { "type": "array", "items": { "type": "string" } }
+      },
+      "allOf": [
+        { "if": { "properties": { "reconciliationStatus": { "const": "AGREED" } }, "required": ["reconciliationStatus"] }, "then": { "properties": { "forebetEvidenceId": { "type": "string", "minLength": 1 }, "statareaEvidenceId": { "type": "string", "minLength": 1 } } } },
+        { "if": { "properties": { "ou25Outcome": { "const": "OVER_25" } }, "required": ["ou25Outcome"] }, "then": { "properties": { "totalGoals": { "type": "integer", "minimum": 3 } } } },
+        { "if": { "properties": { "ou25Outcome": { "const": "UNDER_25" } }, "required": ["ou25Outcome"] }, "then": { "properties": { "totalGoals": { "type": "integer", "maximum": 2 } } } },
+        { "if": { "properties": { "reconciliationStatus": { "enum": ["CONFLICT", "MISSING", "UNSUPPORTED"] } }, "required": ["reconciliationStatus"] }, "then": { "properties": { "homeGoals": { "type": "null" }, "awayGoals": { "type": "null" }, "totalGoals": { "type": "null" }, "result1X2": { "type": "null" }, "ou25Outcome": { "type": "null" } } } }
+      ]
+    }
+  }
+}
