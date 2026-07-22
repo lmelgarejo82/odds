@@ -7,6 +7,7 @@ import { statareaCaptureContractSchema } from "@/contracts/statarea-capture";
 import { reconciliationContractSchema } from "@/contracts/reconciliation";
 import { historicalDatasetContractSchema } from "@/contracts/historical-dataset";
 import { historicalAnalysisSpec } from "@/domain/historical-analysis/spec";
+import { marketPriorityPolicy, marketPriorityPolicyHash } from "@/domain/market-priority/policy";
 
 const schemaDirectory=join(process.cwd(),"src","contracts","schemas");
 const fixtureDirectory=join(process.cwd(),"src","contracts","fixtures");
@@ -14,6 +15,7 @@ const schemas=readdirSync(schemaDirectory).filter(name=>name.endsWith(".schema.j
 const json=(path:string)=>JSON.parse(readFileSync(path,"utf8"));
 const outcome={matchDecisionId:"decision",partition:"DISCOVERY",reconciliationStatus:"AGREED",forebetEvidenceId:"f",statareaEvidenceId:"s",homeGoals:0,awayGoals:0,totalGoals:0,result1X2:"DRAW",ou25Outcome:"UNDER_25",doubleChance1XOutcome:true,doubleChanceX2Outcome:true,doubleChance12Outcome:false,warnings:[]};
 const generated:Record<string,{valid:unknown;invalid:unknown}>={
+  "market-priority-policy":{valid:{contractVersion:"market-priority-policy/1.0",priorityPolicyHash:marketPriorityPolicyHash,policy:marketPriorityPolicy},invalid:{contractVersion:"market-priority-policy/1.0",priorityPolicyHash:marketPriorityPolicyHash,policy:marketPriorityPolicy,ranking:1}},
   "historical-analysis-spec":{valid:historicalAnalysisSpec,invalid:{...historicalAnalysisSpec,score:1}},
   "fixture-outcomes":{valid:{contractVersion:"fixture-outcomes/1.0",spec:{code:"OU25-HISTORICAL-MARKET-ANALYSIS",version:"1.0.0",specHash:"a".repeat(64)},dataset:{code:"OU25-JULY-2026-V1",manifestHash:"b".repeat(64),registryHash:"c".repeat(64)},extractionRunId:"run",counts:{total:98,agreed:98,forebetOnly:0,statareaOnly:0,conflict:0,missing:0,unsupported:0},outcomes:Array.from({length:98},(_,index)=>({...outcome,matchDecisionId:`decision-${index}`})),warnings:[]},invalid:{contractVersion:"fixture-outcomes/1.0",ranking:1}},
   "historical-pattern-evaluation":{valid:{contractVersion:"historical-pattern-evaluation/1.0",specHash:"a".repeat(64),evaluationRunId:"run",partition:"DISCOVERY",evaluations:[],disclaimer:"La cuota teórica no representa rentabilidad real ni cuota de valor."},invalid:{contractVersion:"historical-pattern-evaluation/1.0",Score:1}},

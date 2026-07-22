@@ -1,0 +1,23 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "fixture-preferred-line-decisions/1.0",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["contractVersion", "priorityPolicyHash", "assessmentId", "decisionSetHash", "decisions"],
+  "properties": {
+    "contractVersion": { "const": "fixture-preferred-line-decisions/1.0" },
+    "priorityPolicyHash": { "type": "string", "pattern": "^[a-f0-9]{64}$" },
+    "assessmentId": { "type": "string" },
+    "decisionSetHash": { "type": "string", "pattern": "^[a-f0-9]{64}$" },
+    "decisions": {
+      "type": "array",
+      "items": {
+        "type": "object", "additionalProperties": false,
+        "required": ["id", "matchDecisionId", "selectionStatus", "selectedCandidateId", "selectedMarketCode", "selectedLineCount", "selectedCandidateBlocked", "topCandidateId", "topFinalPriorityScore", "secondCandidateId", "marginToSecond", "reasonCode", "reasons", "caps", "warnings", "priceStatus", "availableOdds", "marketValueStatus", "breakEvenComparisonStatus"],
+        "properties": {
+          "id": { "type": "string" }, "matchDecisionId": { "type": "string" }, "selectionStatus": { "enum": ["PREFERRED", "PROVISIONAL", "NONE"] }, "selectedCandidateId": { "type": ["string", "null"] }, "selectedMarketCode": { "type": ["string", "null"] }, "selectedLineCount": { "type": "integer", "minimum": 0, "maximum": 1 }, "selectedCandidateBlocked": { "type": ["boolean", "null"] }, "topCandidateId": { "type": ["string", "null"] }, "topFinalPriorityScore": { "type": ["number", "null"], "minimum": 0, "maximum": 100 }, "secondCandidateId": { "type": ["string", "null"] }, "marginToSecond": { "type": ["number", "null"], "minimum": 0 }, "reasonCode": { "type": "string" }, "reasons": { "type": "array", "items": { "type": "string" } }, "caps": { "type": "array", "items": { "type": "object", "additionalProperties": false, "required": ["code", "maximum", "before", "after"], "properties": { "code": { "type": "string" }, "maximum": { "type": "number" }, "before": { "type": "number" }, "after": { "type": "number" } } } }, "warnings": { "type": "array", "items": { "type": "string" } }, "priceStatus": { "const": "NOT_EVALUATED" }, "availableOdds": { "type": "null" }, "marketValueStatus": { "const": "UNKNOWN" }, "breakEvenComparisonStatus": { "const": "NOT_AVAILABLE" }
+        }
+      }
+    }
+  }
+}

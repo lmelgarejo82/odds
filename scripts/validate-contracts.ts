@@ -2,6 +2,7 @@ import { readFileSync, readdirSync } from "node:fs";
 import { basename, join } from "node:path";
 import { validateContract } from "../src/contracts/validator";
 import { historicalAnalysisSpec } from "../src/domain/historical-analysis/spec";
+import { marketPriorityPolicy, marketPriorityPolicyHash } from "../src/domain/market-priority/policy";
 
 const root = process.cwd();
 const schemas = join(root, "src", "contracts", "schemas");
@@ -9,6 +10,10 @@ const fixtures = join(root, "src", "contracts", "fixtures");
 
 const fixtureOutcome = { matchDecisionId: "decision", partition: "DISCOVERY", reconciliationStatus: "AGREED", forebetEvidenceId: "forebet-evidence", statareaEvidenceId: "statarea-evidence", homeGoals: 0, awayGoals: 0, totalGoals: 0, result1X2: "DRAW", ou25Outcome: "UNDER_25", doubleChance1XOutcome: true, doubleChanceX2Outcome: true, doubleChance12Outcome: false, warnings: [] };
 const generatedFixtures: Record<string, { valid: unknown; invalid: unknown }> = {
+  "market-priority-policy": {
+    valid: { contractVersion: "market-priority-policy/1.0", priorityPolicyHash: marketPriorityPolicyHash, policy: marketPriorityPolicy },
+    invalid: { contractVersion: "market-priority-policy/1.0", priorityPolicyHash: marketPriorityPolicyHash, policy: marketPriorityPolicy, ranking: 1 },
+  },
   "historical-analysis-spec": {
     valid: historicalAnalysisSpec,
     invalid: { ...historicalAnalysisSpec, patterns: historicalAnalysisSpec.patterns.map((pattern) => pattern.code === "OU25_CONSENSUS_60" ? { ...pattern, threshold: "59.99" } : pattern) },

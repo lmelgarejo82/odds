@@ -1023,22 +1023,22 @@ model OutcomeExtractionAttempt {
 }
 
 model OutcomeEvidence {
-  id                String   @id @default(cuid())
-  extractionRunId   String
-  source            String
-  snapshotId        String
-  sourceRecordId    String
-  sportsDate        DateTime
-  rawResult         String?
-  rawHtResult       String?
-  homeGoals         Int?
-  awayGoals         Int?
-  parseStatus       String
-  reasonCode        String
-  warningsJson      String
-  extractorVersion  String
-  evidenceHash      String
-  createdAt         DateTime @default(now())
+  id               String   @id @default(cuid())
+  extractionRunId  String
+  source           String
+  snapshotId       String
+  sourceRecordId   String
+  sportsDate       DateTime
+  rawResult        String?
+  rawHtResult      String?
+  homeGoals        Int?
+  awayGoals        Int?
+  parseStatus      String
+  reasonCode       String
+  warningsJson     String
+  extractorVersion String
+  evidenceHash     String
+  createdAt        DateTime @default(now())
 
   @@unique([extractionRunId, source, sourceRecordId, extractorVersion])
   @@index([extractionRunId, sportsDate])
@@ -1046,23 +1046,23 @@ model OutcomeEvidence {
 }
 
 model FixtureOutcome {
-  id                         String   @id @default(cuid())
-  extractionRunId            String
-  matchDecisionId            String
-  forebetOutcomeEvidenceId   String?
-  statareaOutcomeEvidenceId  String?
-  reconciliationStatus       String
-  homeGoals                  Int?
-  awayGoals                  Int?
-  totalGoals                 Int?
-  result1X2                  String?
-  ou25Outcome                String?
-  doubleChance1XOutcome      Boolean?
-  doubleChanceX2Outcome      Boolean?
-  doubleChance12Outcome      Boolean?
-  partition                  HistoricalPartition
-  warningsJson               String
-  createdAt                  DateTime @default(now())
+  id                        String              @id @default(cuid())
+  extractionRunId           String
+  matchDecisionId           String
+  forebetOutcomeEvidenceId  String?
+  statareaOutcomeEvidenceId String?
+  reconciliationStatus      String
+  homeGoals                 Int?
+  awayGoals                 Int?
+  totalGoals                Int?
+  result1X2                 String?
+  ou25Outcome               String?
+  doubleChance1XOutcome     Boolean?
+  doubleChanceX2Outcome     Boolean?
+  doubleChance12Outcome     Boolean?
+  partition                 HistoricalPartition
+  warningsJson              String
+  createdAt                 DateTime            @default(now())
 
   @@unique([extractionRunId, matchDecisionId])
   @@index([extractionRunId, reconciliationStatus, partition])
@@ -1126,19 +1126,19 @@ model PatternEvaluation {
 }
 
 model CalibrationBucket {
-  id                       String   @id @default(cuid())
-  evaluationRunId          String
-  patternDefinitionId      String
-  partition                String
-  side                     String
-  lowerBound               Decimal
-  upperBound               Decimal
-  count                    Int
-  averageSourcePercent     Decimal?
-  observedFrequency        Decimal?
-  calibrationDifference    Decimal?
-  warningsJson             String
-  createdAt                DateTime @default(now())
+  id                    String   @id @default(cuid())
+  evaluationRunId       String
+  patternDefinitionId   String
+  partition             String
+  side                  String
+  lowerBound            Decimal
+  upperBound            Decimal
+  count                 Int
+  averageSourcePercent  Decimal?
+  observedFrequency     Decimal?
+  calibrationDifference Decimal?
+  warningsJson          String
+  createdAt             DateTime @default(now())
 
   @@unique([evaluationRunId, patternDefinitionId, partition, side, lowerBound, upperBound])
   @@index([evaluationRunId, partition])
@@ -1152,6 +1152,183 @@ model HistoricalAnalysisAuditEvent {
   eventType       String
   contextJson     String
   createdAt       DateTime @default(now())
+
+  @@index([eventType, createdAt])
+}
+
+model MarketPriorityPolicy {
+  id                            String                            @id @default(cuid())
+  code                          String
+  version                       String
+  status                        String
+  datasetId                     String
+  manifestHash                  String
+  semanticRegistryHash          String
+  historicalAnalysisSpecHash    String
+  engineVersion                 String
+  developmentEvidenceWindow     String
+  independentValidationStatus   String
+  prospectiveValidationRequired Boolean
+  priorityPolicyHash            String                            @unique
+  canonicalPolicyJson           String
+  createdAt                     DateTime                          @default(now())
+  assessmentRuns                MarketPriorityAssessmentRun[]
+  assessmentAttempts            MarketPriorityAssessmentAttempt[]
+  auditEvents                   MarketPriorityAuditEvent[]
+
+  @@unique([code, version])
+  @@index([datasetId, historicalAnalysisSpecHash])
+}
+
+model MarketPriorityAssessmentRun {
+  id                        String                            @id
+  policyId                  String
+  datasetId                 String
+  historicalEvaluationRunId String
+  engineVersion             String
+  assessmentMode            String
+  outcomeEvaluationEnabled  Boolean
+  status                    String
+  fixtureCount              Int
+  candidateCount            Int
+  familyDecisionCount       Int
+  finalDecisionCount        Int
+  candidateSetHash          String
+  familyDecisionSetHash     String
+  finalDecisionSetHash      String
+  assessmentHash            String                            @unique
+  countsJson                String
+  warningsJson              String
+  networkRequestCount       Int                               @default(0)
+  outcomeReadCount          Int                               @default(0)
+  exportPath                String
+  createdAt                 DateTime                          @default(now())
+  policy                    MarketPriorityPolicy              @relation(fields: [policyId], references: [id], onDelete: Restrict)
+  attempts                  MarketPriorityAssessmentAttempt[]
+  candidates                FixtureMarketCandidate[]
+  familyDecisions           FixtureFamilyDecision[]
+  preferredLineDecisions    FixturePreferredLineDecision[]
+  auditEvents               MarketPriorityAuditEvent[]
+
+  @@unique([policyId, datasetId, historicalEvaluationRunId])
+  @@index([status, createdAt])
+}
+
+model MarketPriorityAssessmentAttempt {
+  id                  String                       @id @default(cuid())
+  policyId            String
+  assessmentRunId     String?
+  status              String
+  contextJson         String
+  networkRequestCount Int                          @default(0)
+  outcomeReadCount    Int                          @default(0)
+  createdAt           DateTime                     @default(now())
+  policy              MarketPriorityPolicy         @relation(fields: [policyId], references: [id], onDelete: Restrict)
+  assessmentRun       MarketPriorityAssessmentRun? @relation(fields: [assessmentRunId], references: [id], onDelete: Restrict)
+
+  @@index([policyId, status])
+}
+
+model FixtureMarketCandidate {
+  id                        String                      @id
+  assessmentRunId           String
+  matchDecisionId           String
+  sportsDate                DateTime
+  homeTeam                  String
+  awayTeam                  String
+  family                    String
+  marketCode                String
+  historicalPatternCode     String?
+  matchingQualityClass      String
+  strengthClass             String?
+  confluenceCode            String?
+  sourceEvidenceJson        String
+  signalScore               Decimal
+  historicalEvidenceScore   Decimal
+  dataQualityScore          Decimal
+  rawPriorityScore          Decimal
+  finalPriorityScore        Decimal
+  priorityClass             String
+  validationN               Int
+  validationHitRate         Decimal?
+  validationWilsonLower     Decimal?
+  stabilityClass            String?
+  validationLift            Decimal?
+  maxCountryShare           Decimal?
+  maxCompetitionShare       Decimal?
+  blocked                   Boolean
+  blockersJson              String
+  capsJson                  String
+  reasonsJson               String
+  warningsJson              String
+  priceStatus               String
+  availableOdds             Decimal?
+  marketValueStatus         String
+  breakEvenComparisonStatus String
+  createdAt                 DateTime                    @default(now())
+  assessmentRun             MarketPriorityAssessmentRun @relation(fields: [assessmentRunId], references: [id], onDelete: Restrict)
+
+  @@unique([assessmentRunId, matchDecisionId, family, marketCode])
+  @@index([assessmentRunId, family, priorityClass])
+}
+
+model FixtureFamilyDecision {
+  id                        String                      @id
+  assessmentRunId           String
+  matchDecisionId           String
+  family                    String
+  chosenCandidateId         String?
+  reasonCode                String
+  alternativesJson          String
+  tieBreakJson              String
+  blockersJson              String
+  warningsJson              String
+  priceStatus               String
+  availableOdds             Decimal?
+  marketValueStatus         String
+  breakEvenComparisonStatus String
+  createdAt                 DateTime                    @default(now())
+  assessmentRun             MarketPriorityAssessmentRun @relation(fields: [assessmentRunId], references: [id], onDelete: Restrict)
+
+  @@unique([assessmentRunId, matchDecisionId, family])
+  @@index([assessmentRunId, reasonCode])
+}
+
+model FixturePreferredLineDecision {
+  id                        String                      @id
+  assessmentRunId           String
+  matchDecisionId           String
+  selectionStatus           String
+  selectedCandidateId       String?
+  selectedMarketCode        String?
+  selectedLineCount         Int
+  topCandidateId            String?
+  secondCandidateId         String?
+  marginToSecond            Decimal?
+  reasonCode                String
+  reasonsJson               String
+  capsJson                  String
+  warningsJson              String
+  priceStatus               String
+  availableOdds             Decimal?
+  marketValueStatus         String
+  breakEvenComparisonStatus String
+  createdAt                 DateTime                    @default(now())
+  assessmentRun             MarketPriorityAssessmentRun @relation(fields: [assessmentRunId], references: [id], onDelete: Restrict)
+
+  @@unique([assessmentRunId, matchDecisionId])
+  @@index([assessmentRunId, selectionStatus])
+}
+
+model MarketPriorityAuditEvent {
+  id              String                       @id @default(cuid())
+  policyId        String?
+  assessmentRunId String?
+  eventType       String
+  contextJson     String
+  createdAt       DateTime                     @default(now())
+  policy          MarketPriorityPolicy?        @relation(fields: [policyId], references: [id], onDelete: Restrict)
+  assessmentRun   MarketPriorityAssessmentRun? @relation(fields: [assessmentRunId], references: [id], onDelete: Restrict)
 
   @@index([eventType, createdAt])
 }

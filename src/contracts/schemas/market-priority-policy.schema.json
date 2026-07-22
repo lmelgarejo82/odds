@@ -1,0 +1,44 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "market-priority-policy/1.0",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["contractVersion", "priorityPolicyHash", "policy"],
+  "properties": {
+    "contractVersion": { "const": "market-priority-policy/1.0" },
+    "priorityPolicyHash": { "type": "string", "pattern": "^[a-f0-9]{64}$" },
+    "policy": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["code", "version", "status", "engineVersion", "frozenReferences", "evidenceBoundary", "families", "formulas", "caps", "blockers", "classes", "finalSelection", "priceBoundary", "warnings", "prohibitedOutputs"],
+      "properties": {
+        "code": { "const": "OU25-MARKET-PRIORITY-POLICY" },
+        "version": { "const": "1.0.0" },
+        "status": { "const": "FROZEN" },
+        "engineVersion": { "const": "ou25-market-priority-engine/1.0.0" },
+        "frozenReferences": { "type": "object", "additionalProperties": false, "required": ["datasetId", "datasetCode", "datasetVersion", "manifestHash", "semanticRegistryHash", "historicalAnalysisSpecHash"], "properties": { "datasetId": { "type": "string" }, "datasetCode": { "type": "string" }, "datasetVersion": { "type": "string" }, "manifestHash": { "type": "string" }, "semanticRegistryHash": { "type": "string" }, "historicalAnalysisSpecHash": { "type": "string" } } },
+        "evidenceBoundary": { "type": "object", "additionalProperties": false, "required": ["developmentEvidenceWindow", "independentValidationStatus", "prospectiveValidationRequired", "assessmentMode", "outcomeEvaluationEnabled", "allowedEvidence", "prohibitedIndividualEvidence"], "properties": { "developmentEvidenceWindow": { "type": "string" }, "independentValidationStatus": { "type": "string" }, "prospectiveValidationRequired": { "type": "boolean" }, "assessmentMode": { "type": "string" }, "outcomeEvaluationEnabled": { "type": "boolean" }, "allowedEvidence": { "type": "string" }, "prohibitedIndividualEvidence": { "type": "array", "items": { "type": "string" } } } },
+        "families": { "type": "object", "additionalProperties": false, "required": ["doubleChance", "ou25", "sameMatchCombination"], "properties": {
+          "doubleChance": { "type": "object", "additionalProperties": false, "required": ["alternatives", "familyWinner", "tieBreak", "unresolvedTie"], "properties": { "alternatives": { "type": "array" }, "familyWinner": { "type": "string" }, "tieBreak": { "type": "array" }, "unresolvedTie": { "type": "string" } } },
+          "ou25": { "type": "object", "additionalProperties": false, "required": ["creation", "statareaNoSignal", "historicalPattern", "strengthLabels", "thresholdSelection", "confluenceBonus", "confluenceWarning"], "properties": { "creation": { "type": "string" }, "statareaNoSignal": { "type": "string" }, "historicalPattern": { "type": "string" }, "strengthLabels": { "type": "array" }, "thresholdSelection": { "type": "string" }, "confluenceBonus": { "type": "number" }, "confluenceWarning": { "type": "string" } } },
+          "sameMatchCombination": { "type": "object", "additionalProperties": false, "required": ["creation", "lineFormat", "exactHistoricalPattern", "jointProbabilityCalculated", "sourcePercentAggregation"], "properties": { "creation": { "type": "string" }, "lineFormat": { "type": "string" }, "exactHistoricalPattern": { "type": "string" }, "jointProbabilityCalculated": { "type": "boolean" }, "sourcePercentAggregation": { "type": "string" } } }
+        } },
+        "formulas": { "type": "object", "additionalProperties": false, "required": ["decimalLibrary", "roundingDecimalPlaces", "doubleChanceSignal", "ou25Signal", "combinationSignal", "historicalEvidence", "dataQuality", "priority"], "properties": {
+          "decimalLibrary": { "type": "string" }, "roundingDecimalPlaces": { "type": "number" }, "combinationSignal": { "type": "string" }, "priority": { "type": "string" },
+          "doubleChanceSignal": { "type": "object", "additionalProperties": false, "required": ["percentComponent", "lineMargin", "marginComponent", "signalScore"], "properties": { "percentComponent": { "type": "string" }, "lineMargin": { "type": "string" }, "marginComponent": { "type": "string" }, "signalScore": { "type": "string" } } },
+          "ou25Signal": { "type": "object", "additionalProperties": false, "required": ["minimumAgreementPercent", "strengthComponent", "sourceGap", "balanceComponent", "signalScore"], "properties": { "minimumAgreementPercent": { "type": "string" }, "strengthComponent": { "type": "string" }, "sourceGap": { "type": "string" }, "balanceComponent": { "type": "string" }, "signalScore": { "type": "string" } } },
+          "historicalEvidence": { "type": "object", "additionalProperties": false, "required": ["validationHitRateComponent", "validationWilsonLowerComponent", "sampleComponent", "stabilityComponent", "discoverySubstitution"], "properties": { "validationHitRateComponent": { "type": "string" }, "validationWilsonLowerComponent": { "type": "string" }, "sampleComponent": { "type": "object", "additionalProperties": false, "required": ["0..9", "10..29", "30+"], "properties": { "0..9": { "type": "number" }, "10..29": { "type": "number" }, "30+": { "type": "number" } } }, "stabilityComponent": { "type": "object", "additionalProperties": false, "required": ["STABLE_OR_IMPROVED", "MODERATE_DROP", "SEVERE_DROP"], "properties": { "STABLE_OR_IMPROVED": { "type": "number" }, "MODERATE_DROP": { "type": "number" }, "SEVERE_DROP": { "type": "number" } } }, "discoverySubstitution": { "type": "boolean" } } },
+          "dataQuality": { "type": "object", "additionalProperties": false, "required": ["matching", "completeRequiredFields", "semanticReady", "snapshotIntegrityVerified"], "properties": { "matching": { "type": "object", "additionalProperties": false, "required": ["EXACT", "CONSERVATIVE", "APPROXIMATE"], "properties": { "EXACT": { "type": "number" }, "CONSERVATIVE": { "type": "number" }, "APPROXIMATE": { "type": "number" } } }, "completeRequiredFields": { "type": "number" }, "semanticReady": { "type": "number" }, "snapshotIntegrityVerified": { "type": "number" } } }
+        } },
+        "caps": { "type": "object", "additionalProperties": false, "required": ["historicalEvidence", "priority"], "properties": { "historicalEvidence": { "type": "array", "items": { "$ref": "#/$defs/policyCap" } }, "priority": { "type": "array", "items": { "$ref": "#/$defs/policyCap" } } } },
+        "blockers": { "type": "array" },
+        "classes": { "type": "array", "items": { "type": "object", "additionalProperties": false, "required": ["code", "minimum", "maximum"], "properties": { "code": { "type": "string" }, "minimum": { "type": "number" }, "maximum": { "type": "number" } } } },
+        "finalSelection": { "type": "object", "additionalProperties": false, "required": ["alternativesMaximum", "tieBreak", "unresolvedTie", "preferred", "provisional", "none", "selectedLineMaximum"], "properties": { "alternativesMaximum": { "type": "number" }, "tieBreak": { "type": "array" }, "unresolvedTie": { "type": "string" }, "preferred": { "type": "object", "additionalProperties": false, "required": ["minimumScore", "minimumMarginToSecond", "blockersAllowed"], "properties": { "minimumScore": { "type": "number" }, "minimumMarginToSecond": { "type": "number" }, "blockersAllowed": { "type": "boolean" } } }, "provisional": { "type": "object", "additionalProperties": false, "required": ["minimumScore"], "properties": { "minimumScore": { "type": "number" } } }, "none": { "type": "string" }, "selectedLineMaximum": { "type": "number" } } },
+        "priceBoundary": { "type": "object", "additionalProperties": false, "required": ["priceStatus", "availableOdds", "marketValueStatus", "breakEvenComparisonStatus", "mandatoryWarning"], "properties": { "priceStatus": { "type": "string" }, "availableOdds": { "type": "null" }, "marketValueStatus": { "type": "string" }, "breakEvenComparisonStatus": { "type": "string" }, "mandatoryWarning": { "type": "string" } } },
+        "warnings": { "type": "array" },
+        "prohibitedOutputs": { "type": "array" }
+      }
+    }
+  },
+  "$defs": { "policyCap": { "type": "object", "additionalProperties": false, "required": ["when", "maximum"], "properties": { "when": { "type": "string" }, "maximum": { "type": "number" } } } }
+}

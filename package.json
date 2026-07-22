@@ -32,7 +32,10 @@
     "freeze:historical-analysis-spec": "tsx scripts/freeze-historical-analysis-spec.ts",
     "evaluate:historical-markets": "tsx scripts/evaluate-historical-markets.ts",
     "audit:historical-analysis": "tsx scripts/audit-historical-analysis.ts",
-    "validate:historical-analysis-exports": "tsx scripts/validate-historical-analysis-exports.ts"
+    "validate:historical-analysis-exports": "tsx scripts/validate-historical-analysis-exports.ts",
+    "assess:market-priority": "tsx scripts/assess-market-priority.ts",
+    "audit:market-priority": "tsx scripts/audit-market-priority.ts",
+    "validate:market-priority-exports": "tsx scripts/validate-market-priority-exports.ts"
   },
   "prisma": {
     "seed": "tsx prisma/seed.ts"

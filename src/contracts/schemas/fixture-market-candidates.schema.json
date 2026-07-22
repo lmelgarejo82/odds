@@ -1,0 +1,41 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "fixture-market-candidates/1.0",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["contractVersion", "priorityPolicyHash", "assessmentId", "candidateSetHash", "candidates"],
+  "properties": {
+    "contractVersion": { "const": "fixture-market-candidates/1.0" },
+    "priorityPolicyHash": { "$ref": "#/$defs/hash" },
+    "assessmentId": { "type": "string", "minLength": 1 },
+    "candidateSetHash": { "$ref": "#/$defs/hash" },
+    "candidates": { "type": "array", "items": { "$ref": "#/$defs/candidate" } }
+  },
+  "$defs": {
+    "hash": { "type": "string", "pattern": "^[a-f0-9]{64}$" },
+    "price": { "type": "null" },
+    "cap": {
+      "type": "object", "additionalProperties": false,
+      "required": ["code", "maximum", "before", "after"],
+      "properties": { "code": { "type": "string" }, "maximum": { "type": "number" }, "before": { "type": "number" }, "after": { "type": "number" } }
+    },
+    "candidate": {
+      "type": "object", "additionalProperties": false,
+      "required": ["id", "matchDecisionId", "sportsDate", "fixture", "family", "marketCode", "historicalPatternCode", "matchingQualityClass", "strengthClass", "confluenceCode", "sourceEvidence", "signalDetails", "historicalEvidence", "dataQuality", "signalScore", "historicalEvidenceScore", "dataQualityScore", "rawPriorityScore", "finalPriorityScore", "priorityClass", "blocked", "blockers", "caps", "reasons", "warnings", "priceStatus", "availableOdds", "marketValueStatus", "breakEvenComparisonStatus"],
+      "properties": {
+        "id": { "type": "string" }, "matchDecisionId": { "type": "string" }, "sportsDate": { "type": "string", "format": "date" },
+        "fixture": { "type": "object", "additionalProperties": false, "required": ["homeTeam", "awayTeam"], "properties": { "homeTeam": { "type": "string" }, "awayTeam": { "type": "string" } } },
+        "family": { "enum": ["DOUBLE_CHANCE", "OU25", "SAME_MATCH_COMBINATION"] }, "marketCode": { "type": "string" }, "historicalPatternCode": { "type": ["string", "null"] },
+        "matchingQualityClass": { "enum": ["EXACT", "CONSERVATIVE", "APPROXIMATE"] }, "strengthClass": { "type": ["string", "null"] }, "confluenceCode": { "type": ["string", "null"] },
+        "sourceEvidence": { "type": "object", "additionalProperties": false, "required": ["doubleChanceSourcePercent", "secondHighestDcPercent", "forebetSuggestedSide", "forebetSidePercent", "statareaSidePercent", "statareaSourceOver25Percent"], "properties": { "doubleChanceSourcePercent": { "type": ["number", "null"] }, "secondHighestDcPercent": { "type": ["number", "null"] }, "forebetSuggestedSide": { "type": ["string", "null"] }, "forebetSidePercent": { "type": ["number", "null"] }, "statareaSidePercent": { "type": ["number", "null"] }, "statareaSourceOver25Percent": { "type": ["number", "null"] } } },
+        "signalDetails": { "type": "object", "additionalProperties": false, "required": ["percentComponent", "lineMargin", "marginComponent", "minimumAgreementPercent", "strengthComponent", "sourceGap", "balanceComponent", "combinationDcScore", "combinationOuScore"], "properties": { "percentComponent": { "type": ["number", "null"] }, "lineMargin": { "type": ["number", "null"] }, "marginComponent": { "type": ["number", "null"] }, "minimumAgreementPercent": { "type": ["number", "null"] }, "strengthComponent": { "type": ["number", "null"] }, "sourceGap": { "type": ["number", "null"] }, "balanceComponent": { "type": ["number", "null"] }, "combinationDcScore": { "type": ["number", "null"] }, "combinationOuScore": { "type": ["number", "null"] } } },
+        "historicalEvidence": { "type": "object", "additionalProperties": false, "required": ["patternCode", "side", "validationN", "validationHitRate", "validationWilsonLower", "stabilityClass", "validationHitRateComponent", "validationWilsonLowerComponent", "sampleComponent", "stabilityComponent", "uncappedScore", "validationLift", "maxCountryShare", "maxCompetitionShare"], "properties": { "patternCode": { "type": ["string", "null"] }, "side": { "type": ["string", "null"] }, "validationN": { "type": "integer" }, "validationHitRate": { "type": ["number", "null"] }, "validationWilsonLower": { "type": ["number", "null"] }, "stabilityClass": { "type": ["string", "null"] }, "validationHitRateComponent": { "type": "number" }, "validationWilsonLowerComponent": { "type": "number" }, "sampleComponent": { "type": "number" }, "stabilityComponent": { "type": "number" }, "uncappedScore": { "type": "number" }, "validationLift": { "type": ["number", "null"] }, "maxCountryShare": { "type": ["number", "null"] }, "maxCompetitionShare": { "type": ["number", "null"] } } },
+        "dataQuality": { "type": "object", "additionalProperties": false, "required": ["matchingComponent", "completenessComponent", "semanticReadinessComponent", "integrityComponent"], "properties": { "matchingComponent": { "type": "number" }, "completenessComponent": { "type": "number" }, "semanticReadinessComponent": { "type": "number" }, "integrityComponent": { "type": "number" } } },
+        "signalScore": { "type": "number", "minimum": 0, "maximum": 40 }, "historicalEvidenceScore": { "type": "number", "minimum": 0, "maximum": 40 }, "dataQualityScore": { "type": "number", "minimum": 0, "maximum": 20 },
+        "rawPriorityScore": { "type": "number", "minimum": 0, "maximum": 100 }, "finalPriorityScore": { "type": "number", "minimum": 0, "maximum": 100 },
+        "priorityClass": { "enum": ["HIGH", "INTERESTING", "TRACK", "DO_NOT_PRIORITIZE"] }, "blocked": { "type": "boolean" }, "blockers": { "type": "array", "items": { "type": "string" } }, "caps": { "type": "array", "items": { "$ref": "#/$defs/cap" } }, "reasons": { "type": "array", "items": { "type": "string" } }, "warnings": { "type": "array", "items": { "type": "string" } },
+        "priceStatus": { "const": "NOT_EVALUATED" }, "availableOdds": { "$ref": "#/$defs/price" }, "marketValueStatus": { "const": "UNKNOWN" }, "breakEvenComparisonStatus": { "const": "NOT_AVAILABLE" }
+      }
+    }
+  }
+}
