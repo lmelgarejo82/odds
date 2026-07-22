@@ -20,7 +20,12 @@
     "verify:statarea-idempotency": "tsx scripts/replay-statarea-evidence.ts",
     "validate:statarea-export": "tsx scripts/validate-statarea-export.ts",
     "reconcile:fixtures": "tsx scripts/reconcile-fixtures.ts",
-    "validate:reconciliation-export": "tsx scripts/validate-reconciliation-export.ts"
+    "validate:reconciliation-export": "tsx scripts/validate-reconciliation-export.ts",
+    "import:history": "tsx scripts/import-history.ts",
+    "audit:history": "tsx scripts/audit-history.ts",
+    "preflight:history-day-one": "tsx scripts/preflight-history-day-one.ts",
+    "validate:history-export": "tsx scripts/validate-history-export.ts",
+    "verify:r3-migration": "tsx scripts/verify-r3-migration.ts"
   },
   "prisma": {
     "seed": "tsx prisma/seed.ts"

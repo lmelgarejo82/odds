@@ -1,7 +1,7 @@
 import { Prisma, PrismaClient } from "@prisma/client";
 import { forebetCaptureReportSchema, type ForebetCaptureReport } from "@/contracts/forebet-capture";
 import { canonicalHash } from "@/domain/canonical-hash";
-import { FOREBET_PARSER_VERSION, FOREBET_SOURCE, validateSportDate } from "@/domain/forebet/constants";
+import { buildForebetUrl, FOREBET_PARSER_VERSION, FOREBET_SOURCE, validateSportDate } from "@/domain/forebet/constants";
 import { parseForebetOu25 } from "@/domain/forebet/parser";
 import { preserveEvidence } from "@/infrastructure/forebet/evidence-store";
 import { fetchForebet, type ForebetHttpResponse } from "@/infrastructure/forebet/http-client";
@@ -20,7 +20,7 @@ export async function captureForebetOu25(date: string, dependencies: Dependencie
   catch (error) {
     const message = error instanceof Error ? error.message : "UNKNOWN_CAPTURE_ERROR";
     await prisma.$transaction([
-      prisma.forebetCaptureAttempt.create({data:{requestedDate:dateValue(date),requestedUrl:"https://www.forebet.com/es/predicciones-de-futbol/predicciones-bajo-mas-2-5-goles/2026-07-21",capturedAt:new Date(),parserVersion:FOREBET_PARSER_VERSION,status:"FAILED",errorCode:message}}),
+      prisma.forebetCaptureAttempt.create({data:{requestedDate:dateValue(date),requestedUrl:buildForebetUrl(date).toString(),capturedAt:new Date(),parserVersion:FOREBET_PARSER_VERSION,status:"FAILED",errorCode:message}}),
       prisma.forebetCaptureAuditEvent.create({data:{eventType:"CAPTURE_FAILED",requestedDate:dateValue(date),detailsJson:details({source:FOREBET_SOURCE,date,parserVersion:FOREBET_PARSER_VERSION,error:message})}}),
     ]);
     throw error;

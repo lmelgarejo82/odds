@@ -1,4 +1,5 @@
 process.env.DATABASE_URL ??= "file:./dev.db";
+export {};
 const dateArgument = process.argv.find((value) => value.startsWith("--date="))?.slice(7) ?? process.env.npm_config_date;
 if (!dateArgument) throw new Error("Use --date=YYYY-MM-DD");
 async function main() {

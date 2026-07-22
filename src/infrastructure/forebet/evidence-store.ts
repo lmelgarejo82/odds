@@ -8,7 +8,7 @@ export async function preserveEvidence(date: string, body: Buffer): Promise<{ ha
   return preserveSourceEvidence("forebet", date, body);
 }
 
-export async function preserveSourceEvidence(source: "forebet" | "statarea", date: string, body: Buffer): Promise<{ hash: string; relativePath: string; reused: boolean }> {
+export async function preserveSourceEvidence(source: "forebet" | "statarea" | "statarea-legacy", date: string, body: Buffer): Promise<{ hash: string; relativePath: string; reused: boolean }> {
   const hash = sha256(body);
   const absolute = join(process.cwd(), "var", "evidence", source, date, `${hash}.html`);
   await mkdir(dirname(absolute), { recursive: true });

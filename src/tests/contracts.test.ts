@@ -5,6 +5,7 @@ import { validateContract } from "@/contracts/validator";
 import { forebetCaptureReportSchema } from "@/contracts/forebet-capture";
 import { statareaCaptureContractSchema } from "@/contracts/statarea-capture";
 import { reconciliationContractSchema } from "@/contracts/reconciliation";
+import { historicalDatasetContractSchema } from "@/contracts/historical-dataset";
 
 const schemaDirectory=join(process.cwd(),"src","contracts","schemas");
 const fixtureDirectory=join(process.cwd(),"src","contracts","fixtures");
@@ -21,6 +22,9 @@ describe("contratos JSON",()=>{
   it("valida conciliación con Zod",()=>expect(reconciliationContractSchema.safeParse(json(join(fixtureDirectory,"fixture-reconciliation.valid.json"))).success).toBe(true));
   it("rechaza conciliación inválida con Zod",()=>expect(reconciliationContractSchema.safeParse(json(join(fixtureDirectory,"fixture-reconciliation.invalid.json"))).success).toBe(false));
   it.each([["MATCHED",null,"s1"],["ONLY_FOREBET","f1","s1"],["ONLY_STATAREA","f1","s1"]])("impide combinación inválida %s",(status,forebetId,statareaId)=>{const fixture=json(join(fixtureDirectory,"fixture-reconciliation.valid.json"));Object.assign(fixture.decisions[0],{status,forebetObservationId:forebetId,statareaRowId:statareaId});expect(reconciliationContractSchema.safeParse(fixture).success).toBe(false)});
+  it("valida histórico congelado con Zod",()=>expect(historicalDatasetContractSchema.safeParse(json(join(fixtureDirectory,"historical-dataset.valid.json"))).success).toBe(true));
+  it("rechaza histórico incompleto con Zod",()=>expect(historicalDatasetContractSchema.safeParse(json(join(fixtureDirectory,"historical-dataset.invalid.json"))).success).toBe(false));
+  it("rechaza partición histórica incorrecta",()=>{const fixture=json(join(fixtureDirectory,"historical-dataset.valid.json"));fixture.days[14].partition="DISCOVERY";expect(historicalDatasetContractSchema.safeParse(fixture).success).toBe(false)});
   for(const schemaFile of schemas){
     const stem=schemaFile.replace(".schema.json",""); const schema=json(join(schemaDirectory,schemaFile));
     it(`${stem}: acepta fixture válido`,()=>expect(validateContract(schema,json(join(fixtureDirectory,`${stem}.valid.json`))).valid).toBe(true));

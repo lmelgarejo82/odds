@@ -5,7 +5,8 @@ describe("captura controlada",()=>{
  it("construye únicamente la URL autorizada de Forebet",()=>expect(buildForebetUrl("2026-07-21").toString()).toBe("https://www.forebet.com/es/predicciones-de-futbol/predicciones-bajo-mas-2-5-goles/2026-07-21"));
  it("rechaza dominio arbitrario",()=>expect(()=>assertAuthorizedForebetUrl(new URL("https://example.com/es/predicciones-de-futbol/predicciones-bajo-mas-2-5-goles/2026-07-21"))).toThrow("UNAUTHORIZED_URL"));
  it("acepta fecha válida",()=>expect(validateSportDate("2026-07-21")).toBe("2026-07-21"));
- it.each(["21-07-2026","2026-02-30","2026-07-20"])("rechaza fecha inválida o no autorizada: %s",date=>expect(()=>validateSportDate(date)).toThrow());
+ it.each(["21-07-2026","2026-02-30","2026-06-30","2026-07-22"])("rechaza fecha inválida o no autorizada: %s",date=>expect(()=>validateSportDate(date)).toThrow());
+ it("acepta únicamente fechas del histórico fijo",()=>expect(validateSportDate("2026-07-01")).toBe("2026-07-01"));
  it("reutiliza el mismo hash",()=>expect(snapshotDecision(["abc"],"abc")).toBe("REUSE"));
  it("crea snapshot para hash diferente",()=>expect(snapshotDecision(["abc"],"def")).toBe("CREATE"));
  it("no modifica el estado anterior",()=>{const hashes=Object.freeze(["abc"]);snapshotDecision(hashes,"def");expect(hashes).toEqual(["abc"])});

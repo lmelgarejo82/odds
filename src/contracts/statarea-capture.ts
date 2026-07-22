@@ -2,6 +2,7 @@ import { z } from "zod";
 export const semanticStatusSchema = z.enum([
   "VERIFIED",
   "STRUCTURALLY_MAPPED",
+  "STRUCTURALLY_MAPPED_WITH_LABEL_EVIDENCE",
   "UNVERIFIED",
   "CONFLICTING",
   "NOT_APPLICABLE",

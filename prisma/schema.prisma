@@ -109,9 +109,15 @@ enum ForebetOuSide {
 enum StatareaSemanticStatus {
   VERIFIED
   STRUCTURALLY_MAPPED
+  STRUCTURALLY_MAPPED_WITH_LABEL_EVIDENCE
   UNVERIFIED
   CONFLICTING
   NOT_APPLICABLE
+}
+
+enum StatareaSourcePresentation {
+  MODERN
+  LEGACY_OFFICIAL
 }
 
 enum StatareaRowStatus {
@@ -123,6 +129,20 @@ enum StatareaRowStatus {
 enum MatchRunType {
   PRIMARY
   STABILITY_DIAGNOSTIC
+  HISTORICAL_DATASET
+}
+
+enum HistoricalPartition {
+  DISCOVERY
+  VALIDATION
+}
+
+enum HistoricalDatasetStatus {
+  BUILDING
+  PARTIAL
+  FAILED
+  FROZEN
+  REUSED
 }
 
 enum MatchRunStatus {
@@ -288,8 +308,22 @@ model StatareaCaptureSnapshot {
   attempts             StatareaCaptureAttempt[]
   rows                 StatareaRawRow[]
   rejections           StatareaRowRejection[]
+  profile              StatareaSnapshotProfile?
 
   @@unique([requestedDate, contentHash, parserVersion])
+}
+
+model StatareaSnapshotProfile {
+  id                   String                     @id
+  snapshotId           String                     @unique
+  sourcePresentation   StatareaSourcePresentation
+  endpointTemplate     String
+  requestedUrl         String
+  finalUrl             String
+  parserVersion        String
+  capturePolicyVersion String
+  createdAt            DateTime                   @default(now())
+  snapshot             StatareaCaptureSnapshot    @relation(fields: [snapshotId], references: [id], onDelete: Restrict)
 }
 
 model StatareaRawRow {
@@ -353,6 +387,7 @@ model MatchRun {
   configurationHash  String
   configurationJson  String
   runType            MatchRunType
+  datasetId          String?
   status             MatchRunStatus
   forebetInputCount  Int
   statareaInputCount Int
@@ -441,6 +476,123 @@ model MatchStabilityReport {
   createdAt             DateTime @default(now())
 
   @@unique([primaryRunId, reportHash])
+}
+
+model HistoricalDataset {
+  id                       String                           @id
+  code                     String
+  version                  String
+  dateFrom                 DateTime
+  dateTo                   DateTime
+  discoveryFrom            DateTime
+  discoveryTo              DateTime
+  validationFrom           DateTime
+  validationTo             DateTime
+  capturePolicyVersion     String
+  matcherVersion           String
+  normalizerVersion        String
+  matcherConfigurationHash String
+  warningsJson             String
+  createdAt                DateTime                         @default(now())
+  days                     HistoricalDatasetDay[]
+  imports                  HistoricalImportRun[]
+  policies                 HistoricalDatasetCapturePolicy[]
+
+  @@unique([code, version])
+}
+
+model HistoricalDatasetCapturePolicy {
+  id                  String                     @id
+  datasetId           String
+  version             String
+  sourcePresentation  StatareaSourcePresentation
+  endpointTemplate    String
+  concurrency         Int
+  minimumPauseMs      Int
+  timeoutMs           Int
+  maxBytes            Int
+  maxRedirects        Int
+  maxTechnicalRetries Int
+  createdAt           DateTime                   @default(now())
+  dataset             HistoricalDataset          @relation(fields: [datasetId], references: [id], onDelete: Restrict)
+
+  @@unique([datasetId, version])
+}
+
+model HistoricalDatasetDay {
+  id                         String                      @id
+  datasetId                  String
+  sportsDate                 DateTime
+  partition                  HistoricalPartition
+  forebetSnapshotId          String
+  forebetSha256              String
+  statareaSnapshotId         String
+  statareaSha256             String
+  forebetParserVersion       String
+  statareaParserVersion      String
+  statareaProfileId          String?
+  statareaSourcePresentation StatareaSourcePresentation?
+  matchRunId                 String
+  sourceCountsJson           String
+  matchCountsJson            String
+  qualityStatus              String
+  selectionReasonsJson       String
+  warningsJson               String
+  createdAt                  DateTime                    @default(now())
+  dataset                    HistoricalDataset           @relation(fields: [datasetId], references: [id])
+
+  @@unique([datasetId, sportsDate])
+  @@unique([datasetId, forebetSnapshotId])
+  @@unique([datasetId, statareaSnapshotId])
+  @@unique([datasetId, matchRunId])
+}
+
+model HistoricalImportRun {
+  id                    String            @id
+  datasetId             String
+  requestedDatesJson    String
+  initialCompletedDates Int
+  networkRequestCount   Int
+  warningsJson          String
+  startedAt             DateTime          @default(now())
+  dataset               HistoricalDataset @relation(fields: [datasetId], references: [id])
+}
+
+model HistoricalImportTask {
+  id                 String                      @id @default(cuid())
+  importRunId        String
+  datasetId          String
+  sportsDate         DateTime
+  source             Source
+  sourcePresentation StatareaSourcePresentation?
+  attemptId          String?
+  snapshotId         String?
+  state              String
+  reason             String
+  createdAt          DateTime                    @default(now())
+}
+
+model HistoricalDatasetState {
+  id                 String                  @id @default(cuid())
+  datasetId          String
+  status             HistoricalDatasetStatus
+  completedDates     Int
+  failedDates        Int
+  manifestHash       String?
+  manifestExportPath String?
+  detailsJson        String
+  createdAt          DateTime                @default(now())
+}
+
+model HistoricalAuditEvent {
+  id          String    @id @default(cuid())
+  datasetId   String
+  importRunId String?
+  eventType   String
+  sportsDate  DateTime?
+  source      Source?
+  detailsJson String
+  createdAt   DateTime  @default(now())
 }
 
 model FootballMatch {
