@@ -1,7 +1,7 @@
 # Invariantes del dominio
 
 - Forebet y Statarea son fuentes independientes; sus valores originales se preservan.
-- Artefactos y snapshots son append-only. Un resultado corregido crea otro registro enlazado.
+- Artefactos, snapshots, observaciones Forebet y auditorías de captura son append-only, reforzados con triggers SQLite desde B002. Un resultado corregido crea otro registro enlazado.
 - El matching es explícito y los ambiguos quedan fuera del ranking principal.
 - Over y Under se analizan por separado.
 - `priorityScore` es una prioridad explicable, nunca una probabilidad: señal 0–40, evidencia histórica 0–40 y calidad 0–20.

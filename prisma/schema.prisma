@@ -88,22 +88,131 @@ enum ResearchStatus {
   CLOSED
 }
 
+enum ForebetCaptureStatus {
+  SUCCEEDED
+  PARTIAL
+  FAILED
+  REUSED
+}
+
+enum ForebetRowStatus {
+  VALID
+  WARNING
+  REJECTED
+}
+
+enum ForebetOuSide {
+  OVER
+  UNDER
+}
+
 model SourceArtifact {
-  id                String              @id @default(cuid())
+  id                String                   @id @default(cuid())
   source            Source
   requestedDate     DateTime
   sourceUrl         String
   captureMethod     String
-  contentHash       String              @unique
+  contentHash       String                   @unique
   byteSize          Int
   parserVersion     String
   storagePath       String
   capturedAt        DateTime
   status            ArtifactStatus
-  createdAt         DateTime            @default(now())
+  createdAt         DateTime                 @default(now())
   forebetSnapshots  ForebetOuSnapshot[]
   statareaSnapshots StatareaSnapshot[]
   results           MatchResult[]
+  forebetCaptures   ForebetCaptureSnapshot[]
+}
+
+model ForebetCaptureAttempt {
+  id            String                  @id @default(cuid())
+  requestedDate DateTime
+  requestedUrl  String
+  finalUrl      String?
+  capturedAt    DateTime
+  httpStatus    Int?
+  contentType   String?
+  byteSize      Int?
+  contentHash   String?
+  parserVersion String
+  status        ForebetCaptureStatus
+  warning       String?
+  errorCode     String?
+  snapshotId    String?
+  createdAt     DateTime                @default(now())
+  snapshot      ForebetCaptureSnapshot? @relation(fields: [snapshotId], references: [id])
+}
+
+model ForebetCaptureSnapshot {
+  id               String                  @id @default(cuid())
+  sourceArtifactId String
+  requestedDate    DateTime
+  contentHash      String
+  parserVersion    String
+  evidencePath     String
+  rowsFound        Int
+  validRows        Int
+  rejectedRows     Int
+  duplicateRows    Int
+  warningCount     Int
+  createdAt        DateTime                @default(now())
+  artifact         SourceArtifact          @relation(fields: [sourceArtifactId], references: [id])
+  attempts         ForebetCaptureAttempt[]
+  observations     ForebetObservation[]
+  rejections       ForebetRowRejection[]
+
+  @@unique([requestedDate, contentHash, parserVersion])
+}
+
+model ForebetObservation {
+  id                 String                 @id @default(cuid())
+  snapshotId         String
+  source             Source                 @default(FOREBET)
+  sportDate          DateTime
+  homeTeamRaw        String
+  awayTeamRaw        String
+  competitionRaw     String?
+  countryRaw         String?
+  categoryRaw        String?
+  kickoffRaw         String?
+  suggestedSide      ForebetOuSide
+  probabilityUnder25 Decimal?
+  probabilityOver25  Decimal?
+  predictedHomeGoals Int?
+  predictedAwayGoals Int?
+  averageGoals       Decimal?
+  sourceOdds         Decimal?
+  sourceRowKey       String
+  parserVersion      String
+  parseStatus        ForebetRowStatus
+  warningsJson       String
+  createdAt          DateTime               @default(now())
+  snapshot           ForebetCaptureSnapshot @relation(fields: [snapshotId], references: [id])
+
+  @@unique([snapshotId, sourceRowKey])
+}
+
+model ForebetRowRejection {
+  id           String                 @id @default(cuid())
+  snapshotId   String
+  rowIndex     Int
+  sourceRowKey String?
+  reasonCode   String
+  detailsJson  String
+  createdAt    DateTime               @default(now())
+  snapshot     ForebetCaptureSnapshot @relation(fields: [snapshotId], references: [id])
+
+  @@unique([snapshotId, rowIndex])
+}
+
+model ForebetCaptureAuditEvent {
+  id            String   @id @default(cuid())
+  eventType     String
+  requestedDate DateTime
+  snapshotId    String?
+  detailsJson   String
+  createdAt     DateTime @default(now())
 }
 
 model FootballMatch {

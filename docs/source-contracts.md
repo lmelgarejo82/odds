@@ -2,4 +2,4 @@
 
 Los cinco schemas de `src/contracts/schemas` usan JSON Schema 2020-12, `schemaVersion: "1.0"` y `additionalProperties: false`. AJV con `ajv-formats` los valida. Cada schema tiene un fixture válido y uno inválido.
 
-En B001 representan límites de intercambio, no reportes reales. No se accede a Forebet ni Statarea y no se generan capturas.
+El contrato `forebet-ou25-capture-report` v1 agrega el resultado controlado de B002 y se valida tanto con Zod como con AJV. Los contratos previos no cambiaron de forma incompatible. Statarea permanece fuera de acceso.

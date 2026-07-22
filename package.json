@@ -14,7 +14,8 @@
     "validate": "npm run contracts:validate && npm run typecheck && npm run test:run",
     "db:generate": "prisma generate",
     "db:migrate": "prisma migrate dev",
-    "db:seed": "prisma db seed"
+    "db:seed": "prisma db seed",
+    "capture:forebet": "tsx scripts/capture-forebet.ts"
   },
   "prisma": {
     "seed": "tsx prisma/seed.ts"
@@ -29,6 +30,7 @@
     "@prisma/client": "^6.19.3",
     "ajv": "^8.20.0",
     "ajv-formats": "^3.0.1",
+    "cheerio": "^1.2.0",
     "decimal.js": "^10.6.0",
     "next": "16.2.11",
     "react": "19.2.4",

@@ -1,0 +1,14 @@
+{
+  "$schema":"https://json-schema.org/draft/2020-12/schema","$id":"forebet-ou25-capture-report.schema.json","type":"object","additionalProperties":false,
+  "required":["schemaVersion","source","sportDate","snapshot","counts","observations","rejections","warnings"],
+  "properties":{
+    "schemaVersion":{"const":"1.0"},"source":{"const":"FOREBET"},"sportDate":{"type":"string","format":"date"},
+    "snapshot":{"type":"object","additionalProperties":false,"required":["status","contentHash","parserVersion","evidencePath"],"properties":{"status":{"enum":["SUCCEEDED","PARTIAL","REUSED"]},"contentHash":{"type":"string","pattern":"^[a-f0-9]{64}$"},"parserVersion":{"type":"string","minLength":1},"evidencePath":{"type":"string","pattern":"^var/evidence/forebet/"}}},
+    "counts":{"type":"object","additionalProperties":false,"required":["rowsFound","valid","rejected","duplicates","warnings"],"properties":{"rowsFound":{"type":"integer","minimum":0},"valid":{"type":"integer","minimum":0},"rejected":{"type":"integer","minimum":0},"duplicates":{"type":"integer","minimum":0},"warnings":{"type":"integer","minimum":0}}},
+    "observations":{"type":"array","items":{"$ref":"#/$defs/observation"}},"rejections":{"type":"array","items":{"$ref":"#/$defs/rejection"}},"warnings":{"type":"array","items":{"type":"string"}}
+  },
+  "$defs":{
+    "observation":{"type":"object","additionalProperties":false,"required":["sourceRowKey","homeTeamRaw","awayTeamRaw","suggestedSide","probabilityUnder25","probabilityOver25","predictedHomeGoals","predictedAwayGoals","averageGoals","sourceOdds","warnings"],"properties":{"sourceRowKey":{"type":"string","pattern":"^[a-f0-9]{64}$"},"homeTeamRaw":{"type":"string","minLength":1},"awayTeamRaw":{"type":"string","minLength":1},"suggestedSide":{"enum":["OVER","UNDER"]},"probabilityUnder25":{"type":["string","null"]},"probabilityOver25":{"type":["string","null"]},"predictedHomeGoals":{"type":["integer","null"],"minimum":0},"predictedAwayGoals":{"type":["integer","null"],"minimum":0},"averageGoals":{"type":["string","null"]},"sourceOdds":{"type":["string","null"]},"warnings":{"type":"array","items":{"type":"string"}}}},
+    "rejection":{"type":"object","additionalProperties":false,"required":["rowIndex","reasonCode"],"properties":{"rowIndex":{"type":"integer","minimum":0},"reasonCode":{"type":"string","minLength":1}}}
+  }
+}
