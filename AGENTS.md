@@ -37,3 +37,13 @@ This version has breaking changes — APIs, conventions, and file structure may 
 - No se exportan bases reales sin autorización explícita y un procedimiento de congelación auditado.
 - La extracción no acepta SQL arbitrario ni nombres de tabla proporcionados por usuario.
 - Los mappings SQLite son allowlist fija y versionada.
+
+## Protocolo prospectivo R0
+
+- El legacy permanece en cuarentena y no puede alimentar packets R0, decisiones ni evaluación.
+- Captura prepartido, decisión, closing line y outcome son etapas separadas y append-only.
+- Solo fixtures con kickoff UTC `CONFIRMED` o `HIGH` pueden producir decisiones R0.
+- `SELECTED` exige una cuota ofrecida exacta, activa, no in-play, del mismo fixture y disponible al decidir.
+- Closing odds son exclusivamente evaluación de CLV y nunca input retrospectivo de una decisión.
+- Toda regla, filtro, rango, método no-vig y criterio de promoción se preregistra antes del holdout.
+- No se autorizan claims ni capturas reales antes de completar shadow validation y un lote de autorización separado.

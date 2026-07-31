@@ -23,6 +23,8 @@ Comandos de control:
 /home/yvaforma/.local/bin/uv run python -m ou25_analytics.cli self-check
 /home/yvaforma/.local/bin/uv run python -m ou25_analytics.cli export-synthetic-sqlite --profile prematch --cutoff 2026-01-15T12:00:00Z
 /home/yvaforma/.local/bin/uv run python -m ou25_analytics.cli export-synthetic-sqlite --profile evaluation --cutoff 2026-01-15T12:00:00Z
+/home/yvaforma/.local/bin/uv run prospective-packet-self-check
+/home/yvaforma/.local/bin/uv run validate-prospective-packet /tmp/synthetic-packet.json
 ```
 
 ## Estructura y fronteras
@@ -32,9 +34,22 @@ Comandos de control:
 - `quality`: reglas estructuradas de integridad y temporalidad.
 - `market`, `features`, `splitting`, `backtesting`: lógica científica testeada.
 - `synthetic`: datos ficticios deterministas con semilla explícita.
+- `prospective`: contratos R0 source-neutral, validación relacional y CLI sintética sin persistencia.
 - `notebooks`: exploración solamente; nunca fuente de verdad.
 
 Las features prepartido solo aceptan fixtures y snapshots disponibles antes de kickoff. Outcomes se registran únicamente en vistas de evaluación.
+
+## R0 prospectivo
+
+R0 sustituye cualquier intento de reutilizar el legacy inseguro. El flujo separa packet prepartido,
+decisiones inmutables, observaciones de cierre para CLV y outcomes posteriores. Los kickoffs deben
+ser UTC explícito; solo confianza `CONFIRMED` o `HIGH` habilita decisiones. `ABSTAINED` es válido y
+`SELECTED` exige una cuota exacta del mismo fixture disponible al decidir.
+
+La CLI prospectiva acepta únicamente JSON sintético local bajo temporales o fixtures de tests. No
+abre bases, no acepta URLs, no ejecuta capturas y no modifica el packet. El self-check demuestra
+contratos y cronología, no rentabilidad. Antes de cualquier evaluación real se congelan universo,
+reglas, ranges, método no-vig, holdout y criterios mediante preregistro.
 
 ## Contrato de snapshot
 

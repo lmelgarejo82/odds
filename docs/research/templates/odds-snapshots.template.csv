@@ -1,0 +1,2 @@
+odds_snapshot_id,source_fixture_id,bookmaker_key,market_key,selection_key,captured_at_utc,decimal_odds,raw_odds,line_value,market_status,is_in_play,source_event_id,source_market_id,source_selection_id,source_artifact_reference,price_kind,content_hash
+SYNTH_ODDS_TEMPLATE,SYNTH_FIXTURE_TEMPLATE,SYNTH_BOOK_TEMPLATE,DOUBLE_CHANCE,HOME_OR_DRAW,2030-02-01T16:50:00.000Z,1.60,1.60,,ACTIVE,false,SYNTH_EVENT_TEMPLATE,SYNTH_MARKET_TEMPLATE,SYNTH_SELECTION_TEMPLATE,synth:evidence:odds-template,OFFERED,cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc

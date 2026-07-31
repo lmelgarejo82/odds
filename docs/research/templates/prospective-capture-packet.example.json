@@ -1,0 +1,293 @@
+{
+  "capture_universe": {
+    "allowed_bookmakers": [
+      "SYNTH_BOOK_A"
+    ],
+    "competition_allowlist": [
+      "SYNTH_COMP_ALPHA"
+    ],
+    "date_from": "2030-02-01",
+    "date_to": "2030-02-01",
+    "phase": "PILOT",
+    "postponed_fixture_policy": "RECAPTURE_NEW_KICKOFF",
+    "protocol_version": "prospective-r0/1.0",
+    "required_markets": [
+      "MATCH_ODDS_1X2",
+      "DOUBLE_CHANCE",
+      "DRAW_NO_BET"
+    ],
+    "snapshot_schedule": [
+      {
+        "role": "EARLY",
+        "target_seconds_before_kickoff": 21600,
+        "tolerance_seconds": 1800
+      },
+      {
+        "role": "DECISION",
+        "target_seconds_before_kickoff": 3600,
+        "tolerance_seconds": 900
+      },
+      {
+        "role": "CLOSING",
+        "target_seconds_before_kickoff": 300,
+        "tolerance_seconds": 180
+      }
+    ],
+    "unreliable_kickoff_policy": "BLOCK_DECISION"
+  },
+  "closing_snapshots": [
+    {
+      "bookmaker_key": "SYNTH_BOOK_A",
+      "captured_at_utc": "2030-02-01T17:55:00.000Z",
+      "closing_snapshot_id": "SYNTH_CLOSING_A_1X",
+      "content_hash": "af1b3a9626a8f47162624eeaa7ff59b981866d72408b9ac2fdeaa49fc811cb47",
+      "decimal_odds": 1.55,
+      "fixture_id": "SYNTH_FIXTURE_A",
+      "market_key": "DOUBLE_CHANCE",
+      "seconds_before_kickoff": 300,
+      "selection_key": "HOME_OR_DRAW",
+      "source_artifact_reference": "synth:evidence:closing-a",
+      "status": "ACTIVE"
+    }
+  ],
+  "decisions": [
+    {
+      "break_even_probability": 0.625,
+      "decided_at_utc": "2030-02-01T17:00:00.000Z",
+      "decision_id": "SYNTH_DECISION_A",
+      "decision_status": "SELECTED",
+      "estimated_edge": 0.175,
+      "estimated_probability": 0.8,
+      "fixture_id": "SYNTH_FIXTURE_A",
+      "input_hash": "e7454f25196e40c9a8a6ccbe0883f5cba88b2c12e8a9505ab56c59aa2f0740a4",
+      "policy_version": "synthetic-policy/1.0",
+      "reason_code": "SYNTH_CONCORDANT_CASE",
+      "selected_market_key": "DOUBLE_CHANCE",
+      "selected_odds_snapshot_id": "SYNTH_ODDS_A_1X",
+      "selected_selection_key": "HOME_OR_DRAW"
+    },
+    {
+      "break_even_probability": null,
+      "decided_at_utc": "2030-02-01T19:00:00.000Z",
+      "decision_id": "SYNTH_DECISION_B",
+      "decision_status": "ABSTAINED",
+      "estimated_edge": null,
+      "estimated_probability": 0.15,
+      "fixture_id": "SYNTH_FIXTURE_B",
+      "input_hash": "7deda3f10352f8e63f704502db7f2d07bc33a77164120c22712a4308759bfed2",
+      "policy_version": "synthetic-policy/1.0",
+      "reason_code": "SYNTH_DIVERGENCE_REQUIRES_ABSTENTION",
+      "selected_market_key": null,
+      "selected_odds_snapshot_id": null,
+      "selected_selection_key": null
+    }
+  ],
+  "evidence_manifest": {
+    "items": [
+      {
+        "artifact_reference": "synth:evidence:fixture-a",
+        "captured_at_utc": "2030-02-01T10:00:00.000Z",
+        "content_hash": "06ada57c26aa5cf429e9f2c0a99e3e4a42daecd45fc4c955d7c1399ab4227ae8",
+        "source_name": "SYNTHETIC_SOURCE"
+      },
+      {
+        "artifact_reference": "synth:evidence:fixture-b",
+        "captured_at_utc": "2030-02-01T10:00:00.000Z",
+        "content_hash": "e0ef56d6eb603d9ffe87e74c28b8210b0ea93839e2ea4fb64f1fc2c66e95e391",
+        "source_name": "SYNTHETIC_SOURCE"
+      },
+      {
+        "artifact_reference": "synth:evidence:forebet-a",
+        "captured_at_utc": "2030-02-01T12:00:00.000Z",
+        "content_hash": "87fe0013f1706adf3b3736f28b09ffef5cb53205d10d273730827d45e14530eb",
+        "source_name": "SYNTHETIC_SOURCE"
+      },
+      {
+        "artifact_reference": "synth:evidence:forebet-b",
+        "captured_at_utc": "2030-02-01T13:00:00.000Z",
+        "content_hash": "19997b22a8868ee541cebc4937c4328467d54352140aa230cf99c63da760299a",
+        "source_name": "SYNTHETIC_SOURCE"
+      },
+      {
+        "artifact_reference": "synth:evidence:odds-a",
+        "captured_at_utc": "2030-02-01T16:50:00.000Z",
+        "content_hash": "40d7853798b0e8ff19bfe47bf2e00923799d8712f5d741b011e9cb73128bd549",
+        "source_name": "SYNTHETIC_SOURCE"
+      },
+      {
+        "artifact_reference": "synth:evidence:odds-b",
+        "captured_at_utc": "2030-02-01T18:45:00.000Z",
+        "content_hash": "b1c6be52e884d27f303860f1c4ce92e77e6592ce582242ccb6db72ddc8f16a5b",
+        "source_name": "SYNTHETIC_SOURCE"
+      },
+      {
+        "artifact_reference": "synth:evidence:closing-a",
+        "captured_at_utc": "2030-02-01T17:55:00.000Z",
+        "content_hash": "af1b3a9626a8f47162624eeaa7ff59b981866d72408b9ac2fdeaa49fc811cb47",
+        "source_name": "SYNTHETIC_SOURCE"
+      },
+      {
+        "artifact_reference": "synth:evidence:outcome-a",
+        "captured_at_utc": "2030-02-01T22:00:00.000Z",
+        "content_hash": "12890674cc8cf5217f35349662ca221fc3eb8255a08bc7bda7b9eb028243090b",
+        "source_name": "SYNTHETIC_SOURCE"
+      },
+      {
+        "artifact_reference": "synth:evidence:outcome-b",
+        "captured_at_utc": "2030-02-02T00:00:00.000Z",
+        "content_hash": "8ed9626720333aa9aa9e17a62c035f9a6b30cb7a5091ba7dfd48ef92f557edb0",
+        "source_name": "SYNTHETIC_SOURCE"
+      }
+    ]
+  },
+  "fixtures": [
+    {
+      "away_team_id": "SYNTH_TEAM_AWAY_A",
+      "away_team_raw": "Synthetic Away A",
+      "captured_at_utc": "2030-02-01T10:00:00.000Z",
+      "competition_key": "SYNTH_COMP_ALPHA",
+      "competition_raw": "Synthetic Competition Alpha",
+      "content_hash": "06ada57c26aa5cf429e9f2c0a99e3e4a42daecd45fc4c955d7c1399ab4227ae8",
+      "fixture_status": "SCHEDULED",
+      "home_team_id": "SYNTH_TEAM_HOME_A",
+      "home_team_raw": "Synthetic Home A",
+      "kickoff_at_utc": "2030-02-01T18:00:00.000Z",
+      "kickoff_confidence": "CONFIRMED",
+      "kickoff_raw": "2030-02-01 18:00 UTC",
+      "kickoff_source_timezone": "UTC",
+      "source_artifact_reference": "synth:evidence:fixture-a",
+      "source_fixture_id": "SYNTH_FIXTURE_A",
+      "source_name": "SYNTHETIC_FIXTURE_SOURCE"
+    },
+    {
+      "away_team_id": "SYNTH_TEAM_AWAY_B",
+      "away_team_raw": "Synthetic Away B",
+      "captured_at_utc": "2030-02-01T10:00:00.000Z",
+      "competition_key": "SYNTH_COMP_ALPHA",
+      "competition_raw": "Synthetic Competition Alpha",
+      "content_hash": "e0ef56d6eb603d9ffe87e74c28b8210b0ea93839e2ea4fb64f1fc2c66e95e391",
+      "fixture_status": "SCHEDULED",
+      "home_team_id": "SYNTH_TEAM_HOME_B",
+      "home_team_raw": "Synthetic Home B",
+      "kickoff_at_utc": "2030-02-01T20:00:00.000Z",
+      "kickoff_confidence": "HIGH",
+      "kickoff_raw": "2030-02-01 20:00 UTC",
+      "kickoff_source_timezone": "UTC",
+      "source_artifact_reference": "synth:evidence:fixture-b",
+      "source_fixture_id": "SYNTH_FIXTURE_B",
+      "source_name": "SYNTHETIC_FIXTURE_SOURCE"
+    }
+  ],
+  "forebet_snapshots": [
+    {
+      "away_probability": 0.2,
+      "captured_at_utc": "2030-02-01T12:00:00.000Z",
+      "content_hash": "87fe0013f1706adf3b3736f28b09ffef5cb53205d10d273730827d45e14530eb",
+      "draw_probability": 0.25,
+      "forebet_snapshot_id": "SYNTH_FOREBET_A",
+      "home_probability": 0.55,
+      "parser_version": "synthetic-parser/1.0",
+      "predicted_away_score": 1,
+      "predicted_home_score": 2,
+      "source_artifact_reference": "synth:evidence:forebet-a",
+      "source_fixture_id": "SYNTH_FIXTURE_A",
+      "source_page_reference": "synth:page:forebet-a"
+    },
+    {
+      "away_probability": 0.15,
+      "captured_at_utc": "2030-02-01T13:00:00.000Z",
+      "content_hash": "19997b22a8868ee541cebc4937c4328467d54352140aa230cf99c63da760299a",
+      "draw_probability": 0.2,
+      "forebet_snapshot_id": "SYNTH_FOREBET_B",
+      "home_probability": 0.65,
+      "parser_version": "synthetic-parser/1.0",
+      "predicted_away_score": 0,
+      "predicted_home_score": 1,
+      "source_artifact_reference": "synth:evidence:forebet-b",
+      "source_fixture_id": "SYNTH_FIXTURE_B",
+      "source_page_reference": "synth:page:forebet-b"
+    }
+  ],
+  "generated_at_utc": "2030-02-02T01:00:00.000Z",
+  "odds_snapshots": [
+    {
+      "bookmaker_key": "SYNTH_BOOK_A",
+      "captured_at_utc": "2030-02-01T16:50:00.000Z",
+      "content_hash": "40d7853798b0e8ff19bfe47bf2e00923799d8712f5d741b011e9cb73128bd549",
+      "decimal_odds": 1.6,
+      "is_in_play": false,
+      "line_value": null,
+      "market_key": "DOUBLE_CHANCE",
+      "market_status": "ACTIVE",
+      "odds_snapshot_id": "SYNTH_ODDS_A_1X",
+      "price_kind": "OFFERED",
+      "raw_odds": "1.60",
+      "selection_key": "HOME_OR_DRAW",
+      "source_artifact_reference": "synth:evidence:odds-a",
+      "source_event_id": "SYNTH_EVENT_A",
+      "source_fixture_id": "SYNTH_FIXTURE_A",
+      "source_market_id": "SYNTH_MARKET_A_DC",
+      "source_selection_id": "SYNTH_SELECTION_A_1X"
+    },
+    {
+      "bookmaker_key": "SYNTH_BOOK_A",
+      "captured_at_utc": "2030-02-01T18:45:00.000Z",
+      "content_hash": "b1c6be52e884d27f303860f1c4ce92e77e6592ce582242ccb6db72ddc8f16a5b",
+      "decimal_odds": 2.2,
+      "is_in_play": false,
+      "line_value": null,
+      "market_key": "MATCH_ODDS_1X2",
+      "market_status": "ACTIVE",
+      "odds_snapshot_id": "SYNTH_ODDS_B_AWAY",
+      "price_kind": "OFFERED",
+      "raw_odds": "2.20",
+      "selection_key": "AWAY",
+      "source_artifact_reference": "synth:evidence:odds-b",
+      "source_event_id": "SYNTH_EVENT_B",
+      "source_fixture_id": "SYNTH_FIXTURE_B",
+      "source_market_id": "SYNTH_MARKET_B_1X2",
+      "source_selection_id": "SYNTH_SELECTION_B_AWAY"
+    }
+  ],
+  "outcomes": [
+    {
+      "away_score": 1,
+      "content_hash": "12890674cc8cf5217f35349662ca221fc3eb8255a08bc7bda7b9eb028243090b",
+      "fixture_id": "SYNTH_FIXTURE_A",
+      "home_score": 2,
+      "observed_at_utc": "2030-02-01T22:00:00.000Z",
+      "outcome_id": "SYNTH_OUTCOME_A_V1",
+      "outcome_status": "FINAL",
+      "result_1x2": "HOME",
+      "source_artifact_reference": "synth:evidence:outcome-a",
+      "source_name": "SYNTHETIC_OUTCOME_SOURCE",
+      "supersedes_outcome_id": null
+    },
+    {
+      "away_score": 0,
+      "content_hash": "8ed9626720333aa9aa9e17a62c035f9a6b30cb7a5091ba7dfd48ef92f557edb0",
+      "fixture_id": "SYNTH_FIXTURE_B",
+      "home_score": 0,
+      "observed_at_utc": "2030-02-02T00:00:00.000Z",
+      "outcome_id": "SYNTH_OUTCOME_B_V1",
+      "outcome_status": "FINAL",
+      "result_1x2": "DRAW",
+      "source_artifact_reference": "synth:evidence:outcome-b",
+      "source_name": "SYNTHETIC_OUTCOME_SOURCE",
+      "supersedes_outcome_id": null
+    }
+  ],
+  "packet_hash": "7343786e469f41f9b9639b1c70570f73d8f13b572530e620653be8f0d456bbc5",
+  "packet_id": "SYNTH_PACKET_R0_001",
+  "protocol_version": "prospective-r0/1.0",
+  "source_metadata": {
+    "capture_stage": "SYNTHETIC_FULL",
+    "data_classification": "SYNTHETIC",
+    "source_names": [
+      "SYNTHETIC_FIXTURE_SOURCE",
+      "SYNTHETIC_FOREBET",
+      "SYNTH_BOOK_A"
+    ],
+    "synthetic": true
+  }
+}

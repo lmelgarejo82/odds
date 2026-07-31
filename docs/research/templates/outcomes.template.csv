@@ -1,0 +1,2 @@
+outcome_id,fixture_id,observed_at_utc,source_name,home_score,away_score,result_1x2,outcome_status,supersedes_outcome_id,source_artifact_reference,content_hash
+SYNTH_OUTCOME_TEMPLATE,SYNTH_FIXTURE_TEMPLATE,2030-02-01T22:00:00.000Z,SYNTHETIC_OUTCOME_SOURCE,2,1,HOME,FINAL,,synth:evidence:outcome-template,dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd

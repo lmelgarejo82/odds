@@ -15,6 +15,10 @@ from ou25_analytics.extraction.exporter import export_sqlite_snapshot
 from ou25_analytics.extraction.profiles import ExportProfile
 from ou25_analytics.extraction.synthetic_sqlite import create_synthetic_sqlite
 from ou25_analytics.features.prematch import build_prematch_features
+from ou25_analytics.prospective.cli import (
+    prospective_packet_self_check,
+    validate_packet_path,
+)
 from ou25_analytics.snapshot.duckdb_views import DuckDBSnapshotViews
 from ou25_analytics.snapshot.reader import read_snapshot
 from ou25_analytics.snapshot.writer import write_snapshot
@@ -142,11 +146,29 @@ def main(argv: Sequence[str] | None = None) -> int:
         "--profile", choices=[profile.value for profile in ExportProfile], required=True
     )
     export_parser.add_argument("--cutoff", required=True)
+    prospective_parser = subparsers.add_parser(
+        "validate-prospective-packet",
+        help="validate one local synthetic prospective R0 packet",
+    )
+    prospective_parser.add_argument("path")
+    subparsers.add_parser(
+        "prospective-packet-self-check",
+        help="generate and validate one disposable synthetic R0 packet",
+    )
     arguments = parser.parse_args(argv)
     if arguments.command == "self-check":
         return self_check()
     if arguments.command == "export-synthetic-sqlite":
         return export_synthetic_sqlite(ExportProfile(arguments.profile), arguments.cutoff)
+    if arguments.command == "validate-prospective-packet":
+        _, summary = validate_packet_path(arguments.path)
+        print(json.dumps(summary.model_dump(mode="json"), sort_keys=True))
+        print("SYNTHETIC_PROSPECTIVE_PACKET")
+        print("NO_REAL_DATA")
+        print("NO_REAL_PERFORMANCE_CLAIM")
+        return 0
+    if arguments.command == "prospective-packet-self-check":
+        return prospective_packet_self_check()
     raise AssertionError("unreachable command")
 
 

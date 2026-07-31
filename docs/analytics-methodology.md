@@ -37,3 +37,20 @@ El cutoff se interpreta por disponibilidad específica de tabla. Forebet y odds 
 Los profiles forman una barrera estructural. `prematch` no carga el mapping de outcomes, no ejecuta consultas sobre `Outcome` ni publica metadata o Parquet de resultados. `evaluation` incorpora outcomes por una ruta separada y vuelve a aplicar el cutoff de observación.
 
 Por cada tabla se registran filas fuente, elegibles, exportadas y excluidas por cutoff, invalidez, ausencia de referencia u otras causas. La suma debe cuadrar. El schema fingerprint deriva de nombres, columnas, tipos, nullability, PK, FK y SQL normalizado de las tablas visibles al profile; junto con mapping, commits, lock y hashes permite detectar deriva de schema y reconstruir la semántica de la exportación.
+
+## Frontera prospectiva R0
+
+La auditoría legacy concluyó `SCHEMA_MAPPING_UNSAFE`; sus datos no forman baseline, training set ni
+evidencia prepartido de R0. El protocolo prospectivo comienza con contratos source-neutral y un
+universo completo preregistrado. La agenda T-6h/T-60m/T-5m es nominal: siempre se usa la captura
+real y nunca se imputa disponibilidad desde la hora objetivo.
+
+Captura, decisión, closing y outcome son etapas separadas. Solo kickoff UTC `CONFIRMED` o `HIGH`
+puede habilitar una decisión. Closing odds se usan únicamente para CLV y no sustituyen el precio
+exacto seleccionado. Outcomes entran después del kickoff por la frontera de evaluación y las
+correcciones crean versiones append-only.
+
+Antes de consultar un holdout se congelan protocolo, snapshot, cutoff, mercados, reglas, rangos de
+cuota, divergencia, tamaño mínimo, métricas, método no-vig, stake evaluativo, exclusiones, criterios
+de promoción, fecha y commit. Un cambio posterior produce un nuevo preregistro; nunca se elige una
+regla retrospectivamente por su resultado.

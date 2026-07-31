@@ -1,0 +1,2 @@
+forebet_snapshot_id,source_fixture_id,captured_at_utc,home_probability,draw_probability,away_probability,predicted_home_score,predicted_away_score,source_page_reference,source_artifact_reference,parser_version,content_hash
+SYNTH_FOREBET_TEMPLATE,SYNTH_FIXTURE_TEMPLATE,2030-02-01T12:00:00.000Z,0.50,0.30,0.20,2,1,synth:page:forebet-template,synth:evidence:forebet-template,synthetic-parser/1.0,bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb

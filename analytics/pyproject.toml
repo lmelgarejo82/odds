@@ -18,6 +18,8 @@ dependencies = [
 
 [project.scripts]
 ou25-analytics = "ou25_analytics.cli:main"
+validate-prospective-packet = "ou25_analytics.prospective.cli:validate_main"
+prospective-packet-self-check = "ou25_analytics.prospective.cli:self_check_main"
 
 [build-system]
 requires = ["hatchling>=1.26"]
