@@ -36,9 +36,16 @@ def test_duckdb_rejects_persistent_database_paths(tmp_path: Path) -> None:
         DuckDBSnapshotViews(str(tmp_path / "analytics.duckdb"))
 
 
-def test_package_sources_do_not_read_operational_sqlite() -> None:
+def test_non_extraction_sources_do_not_read_operational_sqlite() -> None:
     package_root = Path(__file__).parents[1] / "src" / "ou25_analytics"
-    source = "\n".join(path.read_text() for path in package_root.rglob("*.py"))
+    source = "\n".join(
+        path.read_text() for path in package_root.rglob("*.py") if "extraction" not in path.parts
+    )
     assert "market-v2.sqlite" not in source
     assert "prisma/dev.db" not in source
     assert "sqlite3" not in source
+
+    sqlite_boundary = (package_root / "extraction" / "sqlite_source.py").read_text()
+    assert "mode=ro&immutable=1" in sqlite_boundary
+    assert "PRAGMA query_only=ON" in sqlite_boundary
+    assert "set_authorizer" in sqlite_boundary

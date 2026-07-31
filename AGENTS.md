@@ -29,3 +29,11 @@ This version has breaking changes — APIs, conventions, and file structure may 
 - Los resultados sintéticos no permiten afirmar rentabilidad ni promover estrategias por aciertos aislados.
 - No se puede utilizar información posterior al momento de decisión.
 - Toda transformación debe ser reproducible desde manifiesto, commit y `analytics/uv.lock`.
+- Nunca se debe abrir una base viva con `immutable=1`; la fuente analítica debe estar congelada previamente.
+- Toda fuente SQLite se rechaza si existe un sidecar WAL, SHM o journal.
+- El hash de la fuente SQLite se verifica antes y después de la extracción.
+- El profile `prematch` no consulta, mapea ni publica outcomes.
+- `kickoffAtUtc` no es un timestamp de disponibilidad de datos.
+- No se exportan bases reales sin autorización explícita y un procedimiento de congelación auditado.
+- La extracción no acepta SQL arbitrario ni nombres de tabla proporcionados por usuario.
+- Los mappings SQLite son allowlist fija y versionada.

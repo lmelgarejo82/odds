@@ -7,7 +7,7 @@ import pandas as pd
 from pydantic import ValidationError
 
 from ou25_analytics.contracts.manifest import SnapshotManifest
-from ou25_analytics.contracts.schemas import CONTRACTS, validate_dataframe
+from ou25_analytics.contracts.schemas import SUPPORTED_TABLE_SETS, validate_dataframe
 from ou25_analytics.snapshot.writer import sha256_file
 
 
@@ -32,8 +32,8 @@ def verify_snapshot(snapshot_path: Path) -> SnapshotManifest:
     except (json.JSONDecodeError, ValidationError) as error:
         raise SnapshotIntegrityError(f"invalid manifest: {error}") from error
 
-    if set(manifest.tables) != set(CONTRACTS):
-        raise SnapshotIntegrityError("manifest table set does not match canonical contracts")
+    if frozenset(manifest.tables) not in SUPPORTED_TABLE_SETS:
+        raise SnapshotIntegrityError("manifest table set is not a supported snapshot profile")
     quality_path = snapshot_path / "quality-report.json"
     if not quality_path.is_file():
         raise SnapshotIntegrityError("quality-report.json is missing")

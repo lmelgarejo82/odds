@@ -50,6 +50,8 @@ class DuckDBSnapshotViews:
                 f"SELECT * FROM read_parquet('{escaped}')"
             )
         if include_outcomes:
+            if "outcomes" not in manifest.tables:
+                raise ValueError("prematch snapshots cannot register evaluation outcomes")
             parquet_path = snapshot_path / manifest.parquet_files["outcomes"]
             escaped = str(parquet_path).replace("'", "''")
             self.connection.execute(

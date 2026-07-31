@@ -21,6 +21,8 @@ Comandos de control:
 /home/yvaforma/.local/bin/uv run pytest
 /home/yvaforma/.local/bin/uv run pytest --cov=ou25_analytics --cov-report=term-missing --cov-fail-under=85
 /home/yvaforma/.local/bin/uv run python -m ou25_analytics.cli self-check
+/home/yvaforma/.local/bin/uv run python -m ou25_analytics.cli export-synthetic-sqlite --profile prematch --cutoff 2026-01-15T12:00:00Z
+/home/yvaforma/.local/bin/uv run python -m ou25_analytics.cli export-synthetic-sqlite --profile evaluation --cutoff 2026-01-15T12:00:00Z
 ```
 
 ## Estructura y fronteras
@@ -40,6 +42,22 @@ Cada directorio publicado contiene un Parquet Zstandard por tabla, `quality-repo
 
 La reproducción exige el manifest, el commit indicado y `uv.lock`. Los outputs de pruebas y self-check viven en directorios temporales eliminables; `var/analytics/` está reservado e ignorado para futuros exports autorizados.
 
+## Fuente SQLite congelada
+
+Una base viva no es una fuente analítica válida. Aunque se calcule el hash del archivo principal, un writer concurrente o páginas todavía presentes en WAL pueden producir una vista incompleta o temporalmente inconsistente. La fuente autorizable debe ser un archivo cerrado y congelado, sin `<database>-wal`, `<database>-shm` ni `<database>-journal`.
+
+`FrozenSQLiteSource` exige una ruta absoluta dentro de una raíz permitida, rechaza symlinks y sidecars, calcula SHA-256 antes de leer y lo repite después de exportar. Abre exclusivamente mediante `mode=ro&immutable=1`, activa `PRAGMA query_only=ON`, instala un authorizer que deniega operaciones mutables y mantiene una sola transacción de lectura. `immutable=1` nunca debe usarse sobre una base viva porque SQLite dejaría de comprobar cambios externos.
+
+El cutoff se aplica al timestamp de disponibilidad de cada tabla: `capturedAtUtc`, `calculatedAtUtc`, `decidedAtUtc` u `observedAtUtc`. `kickoffAtUtc` describe el evento y no demuestra cuándo una fila estuvo disponible. Los fixtures se incluyen solo cuando están referenciados por filas elegibles del profile, por lo que un partido futuro puede aparecer si ya tenía evidencia prepartido antes del cutoff.
+
+El profile `prematch` publica fixtures, Forebet, odds, probabilidades y decisiones. Su mapping no consulta `Outcome`, no produce `outcomes.parquet` y no registra outcomes en DuckDB. El profile `evaluation` añade outcomes mediante una ruta separada y conserva `observedAtUtc <= cutoff`.
+
+La CLI actual crea una SQLite sintética dentro de un directorio temporal, la cierra, verifica que no haya sidecars, exporta y valida el snapshot y elimina ambos artefactos. No ofrece `--database` y rechaza fuentes no marcadas como sintéticas.
+
+## Autorización futura de una fuente real
+
+Este lote no autoriza fuentes reales. Un lote futuro deberá definir quién congela la fuente, demostrar cierre consistente y ausencia de WAL, registrar procedencia y permisos, entregar una ruta allowlisted, comparar schema fingerprint con una versión aprobada y revisar los conteos de exclusión antes de publicar. Cualquier cambio de schema o mapping exige una versión nueva; nunca se debe apuntar el exportador directamente a una base operacional.
+
 ## Limitaciones
 
-Este lote usa exclusivamente datos sintéticos. No exporta SQLite, no entrena modelos reales, no implementa scraping, staking o Kelly y no permite conclusiones sobre rentabilidad o rendimiento deportivo real.
+Este lote usa exclusivamente datos sintéticos. Lee una SQLite sintética congelada para probar la frontera, pero no abre ni exporta ninguna base real. No entrena modelos reales, no implementa scraping, staking o Kelly y no permite conclusiones sobre rentabilidad o rendimiento deportivo real.

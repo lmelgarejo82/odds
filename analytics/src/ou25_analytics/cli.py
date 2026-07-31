@@ -10,6 +10,10 @@ from pathlib import Path
 import pandas as pd
 
 from ou25_analytics.backtesting.metrics import binary_brier_score, flat_stake_profit, roi
+from ou25_analytics.extraction.cutoff import parse_cutoff_z
+from ou25_analytics.extraction.exporter import export_sqlite_snapshot
+from ou25_analytics.extraction.profiles import ExportProfile
+from ou25_analytics.extraction.synthetic_sqlite import create_synthetic_sqlite
 from ou25_analytics.features.prematch import build_prematch_features
 from ou25_analytics.snapshot.duckdb_views import DuckDBSnapshotViews
 from ou25_analytics.snapshot.reader import read_snapshot
@@ -84,15 +88,65 @@ def self_check() -> int:
     return 0
 
 
+def export_synthetic_sqlite(profile: ExportProfile, cutoff_text: str) -> int:
+    """Create, export and delete one explicitly synthetic frozen SQLite source."""
+
+    cutoff = parse_cutoff_z(cutoff_text)
+    with tempfile.TemporaryDirectory(prefix="ou25-analytics-synthetic-sqlite-") as temporary:
+        temporary_root = Path(temporary)
+        source_root = temporary_root / "source"
+        source = create_synthetic_sqlite(source_root, seed=20260731)
+        result = export_sqlite_snapshot(
+            temporary_root / "snapshots",
+            source_database_path=source,
+            allowed_source_root=source_root,
+            profile=profile,
+            snapshot_id=f"SYNTHETIC_SQLITE_{profile.value.upper()}",
+            created_at_utc=cutoff + pd.Timedelta(hours=1),
+            cutoff_at_utc=cutoff,
+            source_kind="SYNTHETIC_SQLITE",
+            source_reference="synthetic:seed:20260731",
+            source_git_commit="SYNTHETIC_SOURCE",
+            analytics_git_commit="WORKTREE_SYNTHETIC_EXPORT",
+            analytics_lock_sha256=_lock_sha256(),
+            synthetic=True,
+        )
+        print(
+            json.dumps(
+                {
+                    "excluded_rows": result.manifest.excluded_rows,
+                    "profile": profile.value,
+                    "row_counts": result.manifest.row_counts,
+                    "snapshot_id": result.manifest.snapshot_id,
+                },
+                sort_keys=True,
+            )
+        )
+        print("SYNTHETIC_SOURCE_ONLY")
+        print("READ_ONLY_SQLITE")
+        print("NO_LEGACY_DATABASE_ACCESSED")
+        print("NO_REAL_PERFORMANCE_CLAIM")
+    return 0
+
+
 def main(argv: Sequence[str] | None = None) -> int:
     """Dispatch the supported CLI command."""
 
     parser = argparse.ArgumentParser(prog="ou25-analytics")
     subparsers = parser.add_subparsers(dest="command", required=True)
     subparsers.add_parser("self-check", help="run a disposable synthetic end-to-end check")
+    export_parser = subparsers.add_parser(
+        "export-synthetic-sqlite", help="export a disposable frozen synthetic SQLite source"
+    )
+    export_parser.add_argument(
+        "--profile", choices=[profile.value for profile in ExportProfile], required=True
+    )
+    export_parser.add_argument("--cutoff", required=True)
     arguments = parser.parse_args(argv)
     if arguments.command == "self-check":
         return self_check()
+    if arguments.command == "export-synthetic-sqlite":
+        return export_synthetic_sqlite(ExportProfile(arguments.profile), arguments.cutoff)
     raise AssertionError("unreachable command")
 
 

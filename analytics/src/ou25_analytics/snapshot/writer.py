@@ -10,8 +10,12 @@ from pathlib import Path
 import pandas as pd
 import pyarrow.parquet as pq
 
-from ou25_analytics.contracts.manifest import DateRange, SnapshotManifest
-from ou25_analytics.contracts.schemas import CONTRACTS, validate_all_tables, validate_dataframe
+from ou25_analytics.contracts.manifest import (
+    DateRange,
+    SnapshotManifest,
+    SQLiteExtractionMetadata,
+)
+from ou25_analytics.contracts.schemas import CONTRACTS, validate_dataframe, validate_snapshot_tables
 from ou25_analytics.quality.checks import run_quality_checks
 
 
@@ -65,6 +69,7 @@ def write_snapshot(
     synthetic: bool,
     schema_version: str = "1",
     excluded_rows: dict[str, int] | None = None,
+    sqlite_extraction: SQLiteExtractionMetadata | None = None,
     notes: list[str] | None = None,
 ) -> Path:
     """Validate, stage and atomically publish one immutable snapshot."""
@@ -76,7 +81,7 @@ def write_snapshot(
 
     staging = Path(tempfile.mkdtemp(prefix=f".{snapshot_id}.staging-", dir=output_root))
     try:
-        validate_all_tables(tables)
+        validate_snapshot_tables(tables)
         quality = run_quality_checks(
             tables,
             snapshot_id=snapshot_id,
@@ -90,7 +95,7 @@ def write_snapshot(
         parquet_hashes: dict[str, str] = {}
         row_counts: dict[str, int] = {}
         date_ranges: dict[str, DateRange] = {}
-        for table_name in sorted(CONTRACTS):
+        for table_name in sorted(tables):
             contract = CONTRACTS[table_name]
             ordered = tables[table_name].sort_values(
                 list(contract.sort_columns), kind="mergesort", ignore_index=True
@@ -124,13 +129,14 @@ def write_snapshot(
             analytics_git_commit=analytics_git_commit,
             analytics_lock_sha256=analytics_lock_sha256,
             synthetic=synthetic,
-            tables=sorted(CONTRACTS),
+            tables=sorted(tables),
             row_counts=row_counts,
             date_ranges=date_ranges,
             parquet_files=parquet_files,
             parquet_sha256=parquet_hashes,
             quality_report_sha256=sha256_file(quality_path),
-            excluded_rows=excluded_rows or {name: 0 for name in CONTRACTS},
+            excluded_rows=excluded_rows or {name: 0 for name in tables},
+            sqlite_extraction=sqlite_extraction,
             notes=notes or [],
         )
         (staging / "manifest.json").write_bytes(

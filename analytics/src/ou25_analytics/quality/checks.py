@@ -77,7 +77,8 @@ def run_quality_checks(
     unique_fixtures = fixtures.drop_duplicates("fixture_id", keep="first").set_index("fixture_id")
     kickoff_by_fixture = _as_utc(unique_fixtures["kickoff_at_utc"])
 
-    for table_name, contract in CONTRACTS.items():
+    for table_name in sorted(tables):
+        contract = CONTRACTS[table_name]
         frame = tables[table_name]
         identifier = frame[IDENTIFIER_COLUMNS[table_name]]
         primary = frame.loc[:, list(contract.primary_key)]
@@ -273,37 +274,38 @@ def run_quality_checks(
         ]
     )
 
-    outcomes = tables["outcomes"]
-    outcome_ids = outcomes["outcome_id"]
-    outcome_kickoff = outcomes["fixture_id"].map(kickoff_by_fixture)
-    checks.append(
-        _check(
-            "outcomes.after_kickoff",
-            _as_utc(outcomes["observed_at_utc"]) < outcome_kickoff,
-            outcome_ids,
-            "outcomes cannot be observed before kickoff",
-            sample_limit=sample_limit,
+    if "outcomes" in tables:
+        outcomes = tables["outcomes"]
+        outcome_ids = outcomes["outcome_id"]
+        outcome_kickoff = outcomes["fixture_id"].map(kickoff_by_fixture)
+        checks.append(
+            _check(
+                "outcomes.after_kickoff",
+                _as_utc(outcomes["observed_at_utc"]) < outcome_kickoff,
+                outcome_ids,
+                "outcomes cannot be observed before kickoff",
+                sample_limit=sample_limit,
+            )
         )
-    )
-    outcome_lookup = outcomes.set_index("outcome_id", drop=False)
-    corrections = outcomes.loc[outcomes["supersedes_outcome_id"].notna()].copy()
-    superseded_ids = corrections["supersedes_outcome_id"].astype(str)
-    superseded_found = superseded_ids.isin(outcome_lookup.index)
-    superseded = outcome_lookup.reindex(superseded_ids).set_axis(corrections.index)
-    inconsistent = ~superseded_found.set_axis(corrections.index)
-    inconsistent |= superseded_found.set_axis(corrections.index) & (
-        superseded["fixture_id"].ne(corrections["fixture_id"])
-        | _as_utc(superseded["observed_at_utc"]).gt(_as_utc(corrections["observed_at_utc"]))
-    )
-    checks.append(
-        _check(
-            "outcomes.corrections_consistent",
-            inconsistent,
-            corrections["outcome_id"],
-            "corrections must reference an earlier outcome for the same fixture",
-            sample_limit=sample_limit,
+        outcome_lookup = outcomes.set_index("outcome_id", drop=False)
+        corrections = outcomes.loc[outcomes["supersedes_outcome_id"].notna()].copy()
+        superseded_ids = corrections["supersedes_outcome_id"].astype(str)
+        superseded_found = superseded_ids.isin(outcome_lookup.index)
+        superseded = outcome_lookup.reindex(superseded_ids).set_axis(corrections.index)
+        inconsistent = ~superseded_found.set_axis(corrections.index)
+        inconsistent |= superseded_found.set_axis(corrections.index) & (
+            superseded["fixture_id"].ne(corrections["fixture_id"])
+            | _as_utc(superseded["observed_at_utc"]).gt(_as_utc(corrections["observed_at_utc"]))
         )
-    )
+        checks.append(
+            _check(
+                "outcomes.corrections_consistent",
+                inconsistent,
+                corrections["outcome_id"],
+                "corrections must reference an earlier outcome for the same fixture",
+                sample_limit=sample_limit,
+            )
+        )
 
     temporal_columns = {
         "forebet_snapshots": "captured_at_utc",
@@ -313,6 +315,8 @@ def run_quality_checks(
         "outcomes": "observed_at_utc",
     }
     for table_name, timestamp_column in temporal_columns.items():
+        if table_name not in tables:
+            continue
         frame = tables[table_name]
         checks.append(
             _check(
@@ -332,6 +336,8 @@ def run_quality_checks(
         "outcomes": "content_hash",
     }
     for table_name, hash_column in hash_columns.items():
+        if table_name not in tables:
+            continue
         frame = tables[table_name]
         hashes = frame[hash_column]
         checks.append(

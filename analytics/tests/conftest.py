@@ -5,6 +5,7 @@ from pathlib import Path
 import pandas as pd
 import pytest
 
+from ou25_analytics.extraction.synthetic_sqlite import create_synthetic_sqlite
 from ou25_analytics.snapshot.writer import write_snapshot
 from ou25_analytics.synthetic.factory import make_synthetic_tables
 
@@ -12,6 +13,11 @@ from ou25_analytics.synthetic.factory import make_synthetic_tables
 @pytest.fixture
 def synthetic_tables() -> dict[str, pd.DataFrame]:
     return make_synthetic_tables(seed=42)
+
+
+@pytest.fixture
+def synthetic_sqlite(tmp_path: Path) -> Path:
+    return create_synthetic_sqlite(tmp_path / "sqlite-source", seed=42)
 
 
 @pytest.fixture

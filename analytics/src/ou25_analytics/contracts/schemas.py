@@ -177,6 +177,18 @@ CONTRACTS: Final[dict[str, TableContract]] = {
     ),
 }
 
+PREMATCH_TABLES: Final[tuple[str, ...]] = (
+    "fixtures",
+    "forebet_snapshots",
+    "odds_snapshots",
+    "market_probabilities",
+    "prematch_decisions",
+)
+EVALUATION_TABLES: Final[tuple[str, ...]] = (*PREMATCH_TABLES, "outcomes")
+SUPPORTED_TABLE_SETS: Final[frozenset[frozenset[str]]] = frozenset(
+    {frozenset(PREMATCH_TABLES), frozenset(EVALUATION_TABLES)}
+)
+
 
 def _is_utc_series(series: pd.Series) -> bool:
     dtype = series.dtype
@@ -222,3 +234,12 @@ def validate_all_tables(tables: dict[str, pd.DataFrame]) -> dict[str, pa.Table]:
     if missing or unexpected:
         raise ContractError(f"table set mismatch; missing={missing}, unexpected={unexpected}")
     return {name: validate_dataframe(name, tables[name]) for name in CONTRACTS}
+
+
+def validate_snapshot_tables(tables: dict[str, pd.DataFrame]) -> dict[str, pa.Table]:
+    """Validate one of the structurally supported snapshot profiles."""
+
+    table_set = frozenset(tables)
+    if table_set not in SUPPORTED_TABLE_SETS:
+        raise ContractError(f"unsupported snapshot table set: {sorted(table_set)}")
+    return {name: validate_dataframe(name, tables[name]) for name in sorted(tables)}
