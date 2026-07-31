@@ -12,6 +12,11 @@
 
 # testing
 /coverage
+/analytics/.pytest_cache/
+/analytics/.mypy_cache/
+/analytics/.ruff_cache/
+/analytics/.coverage
+/analytics/htmlcov/
 
 # next.js
 /.next/
@@ -44,8 +49,16 @@ yarn-error.log*
 /evidencias/
 /var/evidence/
 /var/exports/
+/var/analytics/
 *.tmp
 *.temp
+*.duckdb
+*.duckdb.wal
+
+# isolated Python analytics environment
+/analytics/.venv/
+__pycache__/
+*.py[cod]
 
 # vercel
 .vercel

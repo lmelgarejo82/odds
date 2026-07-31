@@ -15,3 +15,17 @@ This version has breaking changes — APIs, conventions, and file structure may 
 - No se autorizan capturas reales ni apuestas sin autorización explícita del usuario.
 - No se debe afirmar rentabilidad sin validación temporal fuera de muestra.
 - Nunca se pueden usar resultados posteriores para generar decisiones históricas.
+
+## Analytics Python: reglas durables
+
+- Python nunca escribe directamente en la base operacional; consume snapshots analíticos exportados explícitamente.
+- Toda investigación parte de un snapshot congelado con cutoff UTC, manifiesto y hashes verificables.
+- Los Parquet publicados son inmutables; una revisión crea un snapshot nuevo.
+- Los notebooks son exploratorios y no son fuente de verdad. La lógica importante vive en módulos y tests.
+- La generación de features no puede leer outcomes. La evaluación puede leerlos mediante una frontera separada.
+- La validación principal es temporal; los splits aleatorios no constituyen evidencia principal.
+- Toda semilla aleatoria debe recibirse explícitamente.
+- Las métricas deben informar tamaño de muestra y cobertura.
+- Los resultados sintéticos no permiten afirmar rentabilidad ni promover estrategias por aciertos aislados.
+- No se puede utilizar información posterior al momento de decisión.
+- Toda transformación debe ser reproducible desde manifiesto, commit y `analytics/uv.lock`.
