@@ -47,3 +47,14 @@ This version has breaking changes — APIs, conventions, and file structure may 
 - Closing odds son exclusivamente evaluación de CLV y nunca input retrospectivo de una decisión.
 - Toda regla, filtro, rango, método no-vig y criterio de promoción se preregistra antes del holdout.
 - No se autorizan claims ni capturas reales antes de completar shadow validation y un lote de autorización separado.
+
+## Foundation de captura prospectiva
+
+- La evidencia raw se publica antes de normalizar; nunca se reconstruye desde la observación derivada.
+- Provider y transport son puertos separados, y los tests de captura no realizan red.
+- Ningún provider real se conecta sin un lote de aprobación explícito.
+- La idempotencia conserva snapshots legítimos con timestamp o contenido diferente.
+- Los fallos parciales producen warnings o abstención técnica; jamás datos inventados.
+- Closing no crea ni modifica decisiones y outcomes no entran en PREMATCH.
+- Metadata, errores y logs usan allowlists y no contienen payloads, credenciales o sesiones.
+- Dominio y aplicación usan un `CaptureClock` inyectado; no consultan relojes ocultos.

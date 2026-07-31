@@ -39,7 +39,8 @@
     "audit:market-priority-dominance": "tsx scripts/audit-market-priority-dominance.ts",
     "run:prospective-shadow": "tsx scripts/run-prospective-shadow.ts",
     "validate:prospective-exports": "tsx scripts/validate-prospective-exports.ts",
-    "audit:prospective-shadow": "tsx scripts/audit-prospective-shadow.ts"
+    "audit:prospective-shadow": "tsx scripts/audit-prospective-shadow.ts",
+    "market-v2:capture-synthetic:self-check": "tsx scripts/market-v2-capture-synthetic-self-check.ts"
   },
   "prisma": {
     "seed": "tsx prisma/seed.ts"
