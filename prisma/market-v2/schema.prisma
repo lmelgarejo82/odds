@@ -1,0 +1,386 @@
+generator client {
+  provider = "prisma-client-js"
+  output   = "../../src/generated/market-v2-client"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = "file:../../var/market-v2/market-v2.sqlite"
+}
+
+enum ImportStatus {
+  STARTED
+  COMPLETED
+  PARTIAL
+  FAILED
+  BLOCKED
+}
+
+enum FixtureStatus {
+  SCHEDULED
+  POSTPONED
+  CANCELLED
+  STARTED
+  FINISHED
+  UNKNOWN
+}
+
+enum OddsCaptureStatus {
+  STARTED
+  COMPLETED
+  PARTIAL
+  FAILED
+  BLOCKED
+}
+
+enum MarketStatus {
+  ACTIVE
+  SUSPENDED
+  CLOSED
+  UNKNOWN
+}
+
+enum DecisionStatus {
+  SELECTED
+  ABSTAINED
+  UNRESOLVED
+  BLOCKED
+}
+
+enum OutcomeStatus {
+  PROVISIONAL
+  CONFIRMED
+  CORRECTED
+  VOID
+}
+
+enum Result1X2 {
+  HOME
+  DRAW
+  AWAY
+}
+
+enum SettlementResult {
+  WON
+  LOST
+  PUSH
+  VOID
+  UNRESOLVED
+}
+
+enum EvaluationRunStatus {
+  STARTED
+  COMPLETED
+  FAILED
+}
+
+model ImportBatch {
+  id             String           @id
+  sourceType     String
+  startedAtUtc   DateTime
+  completedAtUtc DateTime?
+  status         ImportStatus
+  policyVersion  String
+  createdAtUtc   DateTime         @default(now())
+  artifacts      SourceArtifact[]
+  oddsRuns       OddsCaptureRun[]
+
+  @@index([sourceType, startedAtUtc])
+}
+
+model SourceArtifact {
+  id               String            @id
+  importBatchId    String?
+  sourceName       String
+  sourceReference  String
+  sha256           String
+  capturedAtUtc    DateTime
+  mediaType        String?
+  byteSize         BigInt?
+  createdAtUtc     DateTime          @default(now())
+  importBatch      ImportBatch?      @relation(fields: [importBatchId], references: [id])
+  teamAliases      TeamAlias[]
+  fixtures         Fixture[]
+  forebetSnapshots ForebetSnapshot[]
+  oddsSnapshots    OddsSnapshot[]
+  outcomes         Outcome[]
+
+  @@unique([sourceName, sourceReference, sha256])
+  @@index([importBatchId])
+}
+
+model Team {
+  id           String      @id
+  canonicalKey String      @unique
+  displayName  String
+  createdAtUtc DateTime    @default(now())
+  aliases      TeamAlias[]
+  homeFixtures Fixture[]   @relation("LocalTeam")
+  awayFixtures Fixture[]   @relation("AwayTeam")
+}
+
+model TeamAlias {
+  id               String          @id
+  teamId           String
+  sourceName       String
+  alias            String
+  validFromUtc     DateTime?
+  validToUtc       DateTime?
+  sourceArtifactId String?
+  createdAtUtc     DateTime        @default(now())
+  team             Team            @relation(fields: [teamId], references: [id])
+  sourceArtifact   SourceArtifact? @relation(fields: [sourceArtifactId], references: [id])
+
+  @@unique([sourceName, alias, validFromUtc])
+  @@index([teamId])
+  @@index([sourceArtifactId])
+}
+
+model Fixture {
+  id                 String                      @id
+  localTeamId        String
+  awayTeamId         String
+  competitionKey     String
+  kickoffAtUtc       DateTime
+  status             FixtureStatus
+  sourceArtifactId   String?
+  createdAtUtc       DateTime                    @default(now())
+  localTeam          Team                        @relation("LocalTeam", fields: [localTeamId], references: [id])
+  awayTeam           Team                        @relation("AwayTeam", fields: [awayTeamId], references: [id])
+  sourceArtifact     SourceArtifact?             @relation(fields: [sourceArtifactId], references: [id])
+  forebetSnapshots   ForebetSnapshot[]
+  oddsSnapshots      OddsSnapshot[]
+  probabilityResults MarketProbabilitySnapshot[]
+  decisions          PreMatchDecision[]
+  outcomes           Outcome[]
+
+  @@index([competitionKey, kickoffAtUtc])
+  @@index([localTeamId])
+  @@index([awayTeamId])
+  @@index([sourceArtifactId])
+}
+
+model ForebetSnapshot {
+  id               String         @id
+  fixtureId        String
+  capturedAtUtc    DateTime
+  homeProbability  Decimal
+  drawProbability  Decimal
+  awayProbability  Decimal
+  predictedScore   String?
+  sourceArtifactId String
+  parserVersion    String
+  contentHash      String
+  createdAtUtc     DateTime       @default(now())
+  fixture          Fixture        @relation(fields: [fixtureId], references: [id])
+  sourceArtifact   SourceArtifact @relation(fields: [sourceArtifactId], references: [id])
+
+  @@unique([fixtureId, contentHash])
+  @@index([fixtureId, capturedAtUtc])
+  @@index([sourceArtifactId])
+}
+
+model Bookmaker {
+  id            String         @id
+  stableKey     String         @unique
+  name          String
+  createdAtUtc  DateTime       @default(now())
+  oddsSnapshots OddsSnapshot[]
+}
+
+model MarketDefinition {
+  id           String            @id
+  stableKey    String
+  version      String
+  displayName  String
+  parameters   String?
+  createdAtUtc DateTime          @default(now())
+  selections   MarketSelection[]
+
+  @@unique([stableKey, version])
+}
+
+model MarketSelection {
+  id                   String                      @id
+  marketDefinitionId   String
+  stableKey            String
+  displayName          String
+  parameters           String?
+  createdAtUtc         DateTime                    @default(now())
+  marketDefinition     MarketDefinition            @relation(fields: [marketDefinitionId], references: [id])
+  oddsSnapshots        OddsSnapshot[]
+  probabilitySnapshots MarketProbabilitySnapshot[]
+
+  @@unique([marketDefinitionId, stableKey])
+  @@index([marketDefinitionId])
+}
+
+model OddsCaptureRun {
+  id             String            @id
+  importBatchId  String?
+  sourceName     String
+  startedAtUtc   DateTime
+  completedAtUtc DateTime?
+  status         OddsCaptureStatus
+  policyVersion  String
+  createdAtUtc   DateTime          @default(now())
+  importBatch    ImportBatch?      @relation(fields: [importBatchId], references: [id])
+  snapshots      OddsSnapshot[]
+
+  @@index([sourceName, startedAtUtc])
+  @@index([importBatchId])
+}
+
+model OddsSnapshot {
+  id                  String                   @id
+  fixtureId           String
+  bookmakerId         String
+  marketSelectionId   String
+  oddsCaptureRunId    String
+  capturedAtUtc       DateTime
+  decimalOdds         Decimal
+  rawOdds             String?
+  lineValue           Decimal?
+  marketStatus        MarketStatus
+  isInPlay            Boolean
+  sourceArtifactId    String
+  contentHash         String
+  createdAtUtc        DateTime                 @default(now())
+  fixture             Fixture                  @relation(fields: [fixtureId], references: [id])
+  bookmaker           Bookmaker                @relation(fields: [bookmakerId], references: [id])
+  marketSelection     MarketSelection          @relation(fields: [marketSelectionId], references: [id])
+  oddsCaptureRun      OddsCaptureRun           @relation(fields: [oddsCaptureRunId], references: [id])
+  sourceArtifact      SourceArtifact           @relation(fields: [sourceArtifactId], references: [id])
+  probabilityInputs   MarketProbabilityInput[]
+  selectedByDecisions PreMatchDecision[]
+
+  @@unique([oddsCaptureRunId, contentHash])
+  @@index([fixtureId, capturedAtUtc])
+  @@index([bookmakerId])
+  @@index([marketSelectionId])
+  @@index([sourceArtifactId])
+}
+
+model MarketProbabilitySnapshot {
+  id                  String                   @id
+  fixtureId           String
+  marketSelectionId   String
+  marginRemovalMethod String
+  overround           Decimal
+  probability         Decimal
+  calculatedAtUtc     DateTime
+  version             String
+  inputSetHash        String
+  createdAtUtc        DateTime                 @default(now())
+  fixture             Fixture                  @relation(fields: [fixtureId], references: [id])
+  marketSelection     MarketSelection          @relation(fields: [marketSelectionId], references: [id])
+  inputs              MarketProbabilityInput[]
+
+  @@unique([fixtureId, marketSelectionId, version, inputSetHash])
+  @@index([fixtureId, calculatedAtUtc])
+  @@index([marketSelectionId])
+}
+
+model MarketProbabilityInput {
+  marketProbabilitySnapshotId String
+  oddsSnapshotId              String
+  inputOrdinal                Int
+  probabilitySnapshot         MarketProbabilitySnapshot @relation(fields: [marketProbabilitySnapshotId], references: [id])
+  oddsSnapshot                OddsSnapshot              @relation(fields: [oddsSnapshotId], references: [id])
+
+  @@id([marketProbabilitySnapshotId, oddsSnapshotId])
+  @@unique([marketProbabilitySnapshotId, inputOrdinal])
+  @@index([oddsSnapshotId])
+}
+
+model PreMatchDecision {
+  id                     String               @id
+  fixtureId              String
+  decidedAtUtc           DateTime
+  status                 DecisionStatus
+  reasonCode             String
+  policyVersion          String
+  inputHash              String
+  selectedOddsSnapshotId String?
+  estimatedProbability   Decimal?
+  breakEvenProbability   Decimal?
+  estimatedEdge          Decimal?
+  createdAtUtc           DateTime             @default(now())
+  fixture                Fixture              @relation(fields: [fixtureId], references: [id])
+  selectedOddsSnapshot   OddsSnapshot?        @relation(fields: [selectedOddsSnapshotId], references: [id])
+  settlements            Settlement[]
+  evaluations            DecisionEvaluation[]
+
+  @@unique([fixtureId, policyVersion, inputHash])
+  @@index([fixtureId, decidedAtUtc])
+  @@index([selectedOddsSnapshotId])
+}
+
+model Outcome {
+  id                  String               @id
+  fixtureId           String
+  observedAtUtc       DateTime
+  homeScore           Int
+  awayScore           Int
+  result1X2           Result1X2
+  status              OutcomeStatus
+  sourceArtifactId    String
+  supersedesOutcomeId String?
+  contentHash         String
+  createdAtUtc        DateTime             @default(now())
+  fixture             Fixture              @relation(fields: [fixtureId], references: [id])
+  sourceArtifact      SourceArtifact       @relation(fields: [sourceArtifactId], references: [id])
+  supersedesOutcome   Outcome?             @relation("OutcomeCorrections", fields: [supersedesOutcomeId], references: [id])
+  corrections         Outcome[]            @relation("OutcomeCorrections")
+  settlements         Settlement[]
+  evaluations         DecisionEvaluation[]
+
+  @@unique([fixtureId, contentHash])
+  @@index([fixtureId, observedAtUtc])
+  @@index([sourceArtifactId])
+  @@index([supersedesOutcomeId])
+}
+
+model Settlement {
+  id                      String           @id
+  preMatchDecisionId      String
+  outcomeId               String
+  result                  SettlementResult
+  unitProfitLoss          Decimal
+  settledAtUtc            DateTime
+  settlementPolicyVersion String
+  createdAtUtc            DateTime         @default(now())
+  preMatchDecision        PreMatchDecision @relation(fields: [preMatchDecisionId], references: [id])
+  outcome                 Outcome          @relation(fields: [outcomeId], references: [id])
+
+  @@unique([preMatchDecisionId, outcomeId, settlementPolicyVersion])
+  @@index([outcomeId])
+}
+
+model EvaluationRun {
+  id             String               @id
+  startedAtUtc   DateTime
+  completedAtUtc DateTime?
+  status         EvaluationRunStatus
+  policyVersion  String
+  createdAtUtc   DateTime             @default(now())
+  evaluations    DecisionEvaluation[]
+}
+
+model DecisionEvaluation {
+  id                 String           @id
+  evaluationRunId    String
+  preMatchDecisionId String
+  outcomeId          String
+  resultCode         String
+  metricsJson        String?
+  evaluatedAtUtc     DateTime
+  createdAtUtc       DateTime         @default(now())
+  evaluationRun      EvaluationRun    @relation(fields: [evaluationRunId], references: [id])
+  preMatchDecision   PreMatchDecision @relation(fields: [preMatchDecisionId], references: [id])
+  outcome            Outcome          @relation(fields: [outcomeId], references: [id])
+
+  @@unique([evaluationRunId, preMatchDecisionId, outcomeId])
+  @@index([preMatchDecisionId])
+  @@index([outcomeId])
+}
