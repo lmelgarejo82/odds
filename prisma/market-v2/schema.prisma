@@ -60,6 +60,30 @@ enum Result1X2 {
   AWAY
 }
 
+enum PredictionSelection {
+  HOME
+  DRAW
+  AWAY
+}
+
+enum ProviderRequestClassification {
+  SUCCESS
+  PERMANENT_FAILURE
+  RETRYABLE_FAILURE
+  RATE_LIMITED
+  QUOTA_EXHAUSTED
+  INVALID_RESPONSE
+}
+
+enum Result1X2Scope {
+  REGULATION_TIME
+}
+
+enum ShootoutWinner {
+  HOME
+  AWAY
+}
+
 enum SettlementResult {
   WON
   LOST
@@ -75,38 +99,50 @@ enum EvaluationRunStatus {
 }
 
 model ImportBatch {
-  id             String           @id
-  sourceType     String
-  startedAtUtc   DateTime
-  completedAtUtc DateTime?
-  status         ImportStatus
-  policyVersion  String
-  createdAtUtc   DateTime         @default(now())
-  artifacts      SourceArtifact[]
-  oddsRuns       OddsCaptureRun[]
+  id                    String                 @id
+  sourceType            String
+  startedAtUtc          DateTime
+  completedAtUtc        DateTime?
+  status                ImportStatus
+  policyVersion         String
+  createdAtUtc          DateTime               @default(now())
+  artifacts             SourceArtifact[]
+  oddsRuns              OddsCaptureRun[]
+  predictionSnapshots   PredictionSnapshot[]
+  providerRequestAudits ProviderRequestAudit[]
 
   @@index([sourceType, startedAtUtc])
 }
 
 model SourceArtifact {
-  id               String            @id
-  importBatchId    String?
-  sourceName       String
-  sourceReference  String
-  sha256           String
-  capturedAtUtc    DateTime
-  mediaType        String?
-  byteSize         BigInt?
-  createdAtUtc     DateTime          @default(now())
-  importBatch      ImportBatch?      @relation(fields: [importBatchId], references: [id])
-  teamAliases      TeamAlias[]
-  fixtures         Fixture[]
-  forebetSnapshots ForebetSnapshot[]
-  oddsSnapshots    OddsSnapshot[]
-  outcomes         Outcome[]
+  id                  String               @id
+  importBatchId       String?
+  sourceName          String
+  sourceReference     String
+  sha256              String
+  capturedAtUtc       DateTime
+  mediaType           String?
+  byteSize            BigInt?
+  createdAtUtc        DateTime             @default(now())
+  importBatch         ImportBatch?         @relation(fields: [importBatchId], references: [id])
+  teamAliases         TeamAlias[]
+  fixtures            Fixture[]
+  forebetSnapshots    ForebetSnapshot[]
+  predictionSnapshots PredictionSnapshot[]
+  oddsSnapshots       OddsSnapshot[]
+  outcomes            Outcome[]
 
   @@unique([sourceName, sourceReference, sha256])
   @@index([importBatchId])
+}
+
+model Provider {
+  id                String                    @id
+  stableKey         String                    @unique
+  displayName       String
+  createdAtUtc      DateTime                  @default(now())
+  fixtureIdentities ProviderFixtureIdentity[]
+  requestAudits     ProviderRequestAudit[]
 }
 
 model Team {
@@ -148,6 +184,7 @@ model Fixture {
   localTeam          Team                        @relation("LocalTeam", fields: [localTeamId], references: [id])
   awayTeam           Team                        @relation("AwayTeam", fields: [awayTeamId], references: [id])
   sourceArtifact     SourceArtifact?             @relation(fields: [sourceArtifactId], references: [id])
+  providerIdentities ProviderFixtureIdentity[]
   forebetSnapshots   ForebetSnapshot[]
   oddsSnapshots      OddsSnapshot[]
   probabilityResults MarketProbabilitySnapshot[]
@@ -158,6 +195,29 @@ model Fixture {
   @@index([localTeamId])
   @@index([awayTeamId])
   @@index([sourceArtifactId])
+}
+
+model ProviderFixtureIdentity {
+  id                    String               @id
+  providerId            String
+  providerFixtureId     String
+  fixtureId             String
+  providerCompetitionId String?
+  providerHomeTeamId    String?
+  providerAwayTeamId    String?
+  season                String?
+  round                 String?
+  sourceDateRaw         String?
+  sourceTimestamp       String?
+  sourceTimezone        String?
+  createdAtUtc          DateTime             @default(now())
+  provider              Provider             @relation(fields: [providerId], references: [id])
+  fixture               Fixture              @relation(fields: [fixtureId], references: [id])
+  predictionSnapshots   PredictionSnapshot[]
+
+  @@unique([providerId, providerFixtureId])
+  @@index([fixtureId])
+  @@index([providerId, providerCompetitionId])
 }
 
 model ForebetSnapshot {
@@ -178,6 +238,71 @@ model ForebetSnapshot {
   @@unique([fixtureId, contentHash])
   @@index([fixtureId, capturedAtUtc])
   @@index([sourceArtifactId])
+}
+
+model PredictionSnapshot {
+  id                              String                  @id
+  providerFixtureIdentityId       String
+  sourceArtifactId                String
+  importBatchId                   String?
+  capturedAtUtc                   DateTime
+  predictionCapturedBeforeKickoff Boolean
+  predictedWinnerProviderTeamId   String?
+  predictedWinnerName             String?
+  winnerComment                   String?
+  advice                          String?
+  underOverRaw                    String?
+  providerInternalTimestampRaw    String?
+  probabilityTotalRaw             String
+  contentHash                     String
+  parserVersion                   String
+  policyVersion                   String
+  createdAtUtc                    DateTime                @default(now())
+  providerFixtureIdentity         ProviderFixtureIdentity @relation(fields: [providerFixtureIdentityId], references: [id])
+  sourceArtifact                  SourceArtifact          @relation(fields: [sourceArtifactId], references: [id])
+  importBatch                     ImportBatch?            @relation(fields: [importBatchId], references: [id])
+  probabilities                   PredictionProbability[]
+
+  @@unique([providerFixtureIdentityId, capturedAtUtc])
+  @@index([sourceArtifactId])
+  @@index([importBatchId])
+  @@index([contentHash])
+}
+
+model PredictionProbability {
+  predictionSnapshotId  String
+  selection             PredictionSelection
+  rawPercentage         String
+  normalizedProbability Decimal
+  predictionSnapshot    PredictionSnapshot  @relation(fields: [predictionSnapshotId], references: [id])
+
+  @@id([predictionSnapshotId, selection])
+}
+
+model ProviderRequestAudit {
+  id                 String                        @id
+  providerId         String
+  importBatchId      String?
+  endpointKey        String
+  requestKeyHash     String
+  correlationId      String
+  attemptNumber      Int
+  startedAtUtc       DateTime
+  finishedAtUtc      DateTime?
+  httpStatus         Int?
+  classification     ProviderRequestClassification
+  sanitizedErrorCode String?
+  dailyLimit         Int?
+  dailyRemaining     Int?
+  minuteLimit        Int?
+  minuteRemaining    Int?
+  createdAtUtc       DateTime                      @default(now())
+  provider           Provider                      @relation(fields: [providerId], references: [id])
+  importBatch        ImportBatch?                  @relation(fields: [importBatchId], references: [id])
+
+  @@unique([requestKeyHash, attemptNumber])
+  @@index([providerId, startedAtUtc])
+  @@index([importBatchId])
 }
 
 model Bookmaker {
@@ -317,23 +442,32 @@ model PreMatchDecision {
 }
 
 model Outcome {
-  id                  String               @id
-  fixtureId           String
-  observedAtUtc       DateTime
-  homeScore           Int
-  awayScore           Int
-  result1X2           Result1X2
-  status              OutcomeStatus
-  sourceArtifactId    String
-  supersedesOutcomeId String?
-  contentHash         String
-  createdAtUtc        DateTime             @default(now())
-  fixture             Fixture              @relation(fields: [fixtureId], references: [id])
-  sourceArtifact      SourceArtifact       @relation(fields: [sourceArtifactId], references: [id])
-  supersedesOutcome   Outcome?             @relation("OutcomeCorrections", fields: [supersedesOutcomeId], references: [id])
-  corrections         Outcome[]            @relation("OutcomeCorrections")
-  settlements         Settlement[]
-  evaluations         DecisionEvaluation[]
+  id                        String               @id
+  fixtureId                 String
+  observedAtUtc             DateTime
+  homeScore                 Int
+  awayScore                 Int
+  result1X2                 Result1X2
+  providerTerminalStatusRaw String?
+  result1X2Scope            Result1X2Scope?
+  regulationHomeScore       Int?
+  regulationAwayScore       Int?
+  extraTimeHomeScore        Int?
+  extraTimeAwayScore        Int?
+  penaltyHomeScore          Int?
+  penaltyAwayScore          Int?
+  shootoutWinner            ShootoutWinner?
+  status                    OutcomeStatus
+  sourceArtifactId          String
+  supersedesOutcomeId       String?
+  contentHash               String
+  createdAtUtc              DateTime             @default(now())
+  fixture                   Fixture              @relation(fields: [fixtureId], references: [id])
+  sourceArtifact            SourceArtifact       @relation(fields: [sourceArtifactId], references: [id])
+  supersedesOutcome         Outcome?             @relation("OutcomeCorrections", fields: [supersedesOutcomeId], references: [id])
+  corrections               Outcome[]            @relation("OutcomeCorrections")
+  settlements               Settlement[]
+  evaluations               DecisionEvaluation[]
 
   @@unique([fixtureId, contentHash])
   @@index([fixtureId, observedAtUtc])

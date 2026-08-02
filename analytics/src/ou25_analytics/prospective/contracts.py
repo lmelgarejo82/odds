@@ -4,6 +4,7 @@ import hashlib
 import json
 import re
 from datetime import UTC, date, datetime, timedelta
+from decimal import Decimal
 from enum import StrEnum
 from typing import Annotated, Any, Literal, Self
 
@@ -18,6 +19,11 @@ from pydantic import (
 SHA256_PATTERN = r"^[a-f0-9]{64}$"
 IDENTIFIER_PATTERN = r"^[A-Za-z0-9][A-Za-z0-9._:-]*$"
 PROBABILITY_TOLERANCE = 0.01
+PREDICTION_TOTAL_MIN = Decimal("99.99")
+PREDICTION_TOTAL_MAX = Decimal("100.01")
+RAW_PERCENTAGE_PATTERN = r"^(?:100(?:\.0+)?|\d{1,2}(?:\.\d+)?)%$"
+TOTAL_PERCENTAGE_PATTERN = r"^\d{1,3}(?:\.\d+)?%$"
+DECIMAL_PROBABILITY_PATTERN = r"^(?:0(?:\.\d+)?|1(?:\.0+)?)$"
 
 
 def _require_utc_z(value: object) -> object:
@@ -38,7 +44,7 @@ UtcTimestamp = Annotated[datetime, BeforeValidator(_require_utc_z)]
 class StrictModel(BaseModel):
     """Forbid undeclared fields and mutation in every R0 contract."""
 
-    model_config = ConfigDict(extra="forbid", frozen=True)
+    model_config = ConfigDict(extra="forbid", frozen=True, hide_input_in_errors=True)
 
 
 class ProtocolPhase(StrEnum):
@@ -249,6 +255,80 @@ class ForebetSnapshot(StrictModel):
         return self
 
 
+class PredictionSelectionKey(StrEnum):
+    HOME = "HOME"
+    DRAW = "DRAW"
+    AWAY = "AWAY"
+
+
+def _exact_probability_from_string(value: object) -> object:
+    if not isinstance(value, str) or re.fullmatch(DECIMAL_PROBABILITY_PATTERN, value) is None:
+        raise ValueError("normalized probability must be a plain decimal string")
+    return Decimal(value)
+
+
+ExactProbability = Annotated[Decimal, BeforeValidator(_exact_probability_from_string)]
+
+
+class PredictionSelection(StrictModel):
+    selection: PredictionSelectionKey
+    raw_percentage: str = Field(pattern=RAW_PERCENTAGE_PATTERN)
+    normalized_probability: ExactProbability
+
+    @model_validator(mode="after")
+    def validate_exact_probability(self) -> Self:
+        raw_probability = Decimal(self.raw_percentage.removesuffix("%")) / Decimal(100)
+        if self.normalized_probability != raw_probability:
+            raise ValueError("normalized probability must exactly match raw percentage")
+        return self
+
+
+class PredictionSnapshot(StrictModel):
+    provider_key: str = Field(pattern=IDENTIFIER_PATTERN)
+    provider_fixture_id: str = Field(pattern=IDENTIFIER_PATTERN)
+    captured_at_utc: UtcTimestamp
+    kickoff_at_utc: UtcTimestamp
+    prediction_captured_before_kickoff: bool
+    selections: list[PredictionSelection] = Field(min_length=3, max_length=3)
+    probability_total_raw: str = Field(pattern=TOTAL_PERCENTAGE_PATTERN)
+    predicted_winner_provider_team_id: str | None = None
+    predicted_winner_name: str | None = None
+    winner_comment: str | None = None
+    advice: str | None = None
+    under_over_raw: str | None = None
+    provider_internal_timestamp: str | None = None
+    content_hash: str = Field(pattern=SHA256_PATTERN)
+    parser_version: str = Field(min_length=1)
+    policy_version: str = Field(min_length=1)
+
+    @model_validator(mode="after")
+    def validate_prediction(self) -> Self:
+        selections = [item.selection for item in self.selections]
+        if selections != [
+            PredictionSelectionKey.HOME,
+            PredictionSelectionKey.DRAW,
+            PredictionSelectionKey.AWAY,
+        ]:
+            raise ValueError("prediction selections must be canonical HOME DRAW AWAY")
+
+        total = sum(
+            (Decimal(item.raw_percentage.removesuffix("%")) for item in self.selections),
+            start=Decimal(0),
+        )
+        if not PREDICTION_TOTAL_MIN <= total <= PREDICTION_TOTAL_MAX:
+            raise ValueError("prediction percentage sum is outside 99.99 to 100.01")
+        reported_total = Decimal(self.probability_total_raw.removesuffix("%"))
+        if reported_total != total:
+            raise ValueError("probability_total_raw contradicts exact selection sum")
+
+        actually_before_kickoff = self.captured_at_utc < self.kickoff_at_utc
+        if self.prediction_captured_before_kickoff != actually_before_kickoff:
+            raise ValueError("prediction prematch flag contradicts chronology")
+        if not actually_before_kickoff:
+            raise ValueError("prediction snapshot must be strictly before kickoff")
+        return self
+
+
 class OddsSnapshot(StrictModel):
     odds_snapshot_id: str = Field(pattern=IDENTIFIER_PATTERN)
     source_fixture_id: str = Field(pattern=IDENTIFIER_PATTERN)
@@ -374,6 +454,8 @@ def _canonical_value(value: Any) -> Any:
         return [_canonical_value(item) for item in value]
     if isinstance(value, StrEnum):
         return value.value
+    if isinstance(value, Decimal):
+        return format(value, "f")
     if isinstance(value, str) and re.fullmatch(r"\d{4}-\d{2}-\d{2}T.*Z", value):
         parsed = datetime.fromisoformat(value.replace("Z", "+00:00"))
         return _canonical_value(parsed)
@@ -590,6 +672,43 @@ class ProspectiveCapturePacket(StrictModel):
         expected_hash = packet_payload_hash(self.model_dump(mode="python"))
         if self.packet_hash != expected_hash:
             raise ValueError("packet_hash is inconsistent with canonical packet content")
+        return self
+
+
+class SourceNeutralProspectiveCapturePacket(ProspectiveCapturePacket):
+    """Version 2 packet with provider-neutral prediction snapshots."""
+
+    packet_schema_version: Literal["2"]
+    prediction_snapshots: list[PredictionSnapshot]
+
+    @model_validator(mode="after")
+    def validate_source_neutral_predictions(self) -> Self:
+        stage = self.source_metadata.capture_stage
+        if stage in {CaptureStage.CLOSING, CaptureStage.OUTCOME} and self.prediction_snapshots:
+            raise ValueError("prediction snapshots are only valid in prematch packets")
+
+        identities = [
+            (snapshot.provider_key, snapshot.provider_fixture_id)
+            for snapshot in self.prediction_snapshots
+        ]
+        if len(identities) != len(set(identities)):
+            raise ValueError("prediction snapshot provider identities must be unique")
+        expected_order = sorted(
+            self.prediction_snapshots,
+            key=lambda item: (
+                item.provider_key,
+                item.provider_fixture_id,
+                item.captured_at_utc,
+                item.content_hash,
+            ),
+        )
+        if self.prediction_snapshots != expected_order:
+            raise ValueError("prediction snapshots must use deterministic canonical order")
+        if any(
+            snapshot.captured_at_utc > self.generated_at_utc
+            for snapshot in self.prediction_snapshots
+        ):
+            raise ValueError("packet cannot predate a prediction snapshot")
         return self
 
 

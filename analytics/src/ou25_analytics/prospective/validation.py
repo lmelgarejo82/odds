@@ -7,6 +7,7 @@ from pydantic import BaseModel, ConfigDict
 from ou25_analytics.prospective.contracts import (
     DecisionStatus,
     ProspectiveCapturePacket,
+    SourceNeutralProspectiveCapturePacket,
 )
 
 
@@ -23,6 +24,7 @@ class PacketValidationSummary(BaseModel):
     decision_count: int
     closing_snapshot_count: int
     outcome_count: int
+    prediction_snapshot_count: int
     decision_status_counts: dict[str, int]
     warnings: list[str]
 
@@ -32,7 +34,12 @@ def validate_packet(
 ) -> tuple[ProspectiveCapturePacket, PacketValidationSummary]:
     """Validate a packet without persistence, network access, or mutable state."""
 
-    packet = ProspectiveCapturePacket.model_validate(payload)
+    source_neutral = "packet_schema_version" in payload or "prediction_snapshots" in payload
+    packet: ProspectiveCapturePacket = (
+        SourceNeutralProspectiveCapturePacket.model_validate(payload)
+        if source_neutral
+        else ProspectiveCapturePacket.model_validate(payload)
+    )
     status_counts = Counter(decision.decision_status.value for decision in packet.decisions)
     warnings: list[str] = []
     if not packet.odds_snapshots:
@@ -55,6 +62,7 @@ def validate_packet(
         decision_count=len(packet.decisions),
         closing_snapshot_count=len(packet.closing_snapshots),
         outcome_count=len(packet.outcomes),
+        prediction_snapshot_count=len(getattr(packet, "prediction_snapshots", [])),
         decision_status_counts=dict(sorted(status_counts.items())),
         warnings=warnings,
     )
