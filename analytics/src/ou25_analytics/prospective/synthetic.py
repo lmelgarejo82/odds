@@ -1,5 +1,6 @@
 """Deterministic, unmistakably synthetic R0 packet fixtures."""
 
+import copy
 import hashlib
 from typing import Any
 
@@ -252,5 +253,75 @@ def make_synthetic_packet_payload() -> dict[str, Any]:
         ],
         "evidence_manifest": {"items": list(artifacts.values())},
     }
+    payload["packet_hash"] = packet_payload_hash(payload)
+    return payload
+
+
+def make_source_neutral_synthetic_packet_payload() -> dict[str, Any]:
+    """Build a deterministic version 2 PREMATCH packet with provider-neutral predictions."""
+
+    payload = copy.deepcopy(make_synthetic_packet_payload())
+    payload["packet_schema_version"] = "2"
+    payload["protocol_version"] = "prospective-r0/2.0"
+    payload["packet_id"] = "SYNTH_PACKET_R0_SOURCE_NEUTRAL_001"
+    payload["capture_universe"]["protocol_version"] = "prospective-r0/2.0"
+    payload["source_metadata"]["capture_stage"] = "PREMATCH"
+    payload["source_metadata"]["source_names"] = [
+        "SYNTHETIC_FIXTURE_SOURCE",
+        "SYNTHETIC_FOREBET",
+        "SYNTHETIC_PREDICTION_PROVIDER",
+        "SYNTH_BOOK_A",
+    ]
+    payload["prediction_snapshots"] = [
+        {
+            "provider_key": "synthetic-prediction-provider",
+            "provider_fixture_id": "SYNTH_EXTERNAL_FIXTURE_A",
+            "captured_at_utc": "2030-02-01T17:00:00.000Z",
+            "kickoff_at_utc": "2030-02-01T18:00:00.000Z",
+            "prediction_captured_before_kickoff": True,
+            "selections": [
+                {
+                    "selection": "HOME",
+                    "raw_percentage": "45%",
+                    "normalized_probability": "0.45",
+                },
+                {
+                    "selection": "DRAW",
+                    "raw_percentage": "30%",
+                    "normalized_probability": "0.3",
+                },
+                {
+                    "selection": "AWAY",
+                    "raw_percentage": "25%",
+                    "normalized_probability": "0.25",
+                },
+            ],
+            "probability_total_raw": "100%",
+            "predicted_winner_provider_team_id": "SYNTH_TEAM_HOME_A",
+            "predicted_winner_name": "Synthetic Home A",
+            "winner_comment": "Synthetic winner metadata",
+            "advice": "Synthetic advice metadata only",
+            "under_over_raw": "Synthetic under-over metadata only",
+            "provider_internal_timestamp": None,
+            "content_hash": _hash("source-neutral-prediction-a"),
+            "parser_version": "synthetic-prediction-parser/1.0",
+            "policy_version": "synthetic-prediction-policy/1.0",
+        }
+    ]
+    payload["closing_snapshots"] = []
+    payload["outcomes"] = []
+    allowed_evidence = {
+        "synth:evidence:fixture-a",
+        "synth:evidence:fixture-b",
+        "synth:evidence:forebet-a",
+        "synth:evidence:forebet-b",
+        "synth:evidence:odds-a",
+        "synth:evidence:odds-b",
+    }
+    payload["evidence_manifest"]["items"] = [
+        item
+        for item in payload["evidence_manifest"]["items"]
+        if item["artifact_reference"] in allowed_evidence
+    ]
     payload["packet_hash"] = packet_payload_hash(payload)
     return payload

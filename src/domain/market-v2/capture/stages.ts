@@ -5,6 +5,7 @@ export type CaptureStage = (typeof CAPTURE_STAGES)[number];
 export const PROVIDER_CAPABILITIES = [
   "FIXTURES",
   "FOREBET",
+  "PREDICTIONS",
   "ODDS",
   "CLOSING",
   "OUTCOMES",
@@ -15,7 +16,7 @@ export type ProviderCapability = (typeof PROVIDER_CAPABILITIES)[number];
 export function capabilitiesForStage(stage: CaptureStage): readonly ProviderCapability[] {
   switch (stage) {
     case "PREMATCH":
-      return ["FIXTURES", "FOREBET", "ODDS"];
+      return ["FIXTURES", "FOREBET", "PREDICTIONS", "ODDS"];
     case "CLOSING":
       return ["FIXTURES", "CLOSING"];
     case "OUTCOME":

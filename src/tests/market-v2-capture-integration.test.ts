@@ -1,5 +1,7 @@
+import childProcess, { type SpawnOptions } from "node:child_process";
 import { readFileSync, readdirSync } from "node:fs";
 import { mkdir, mkdtemp, rm } from "node:fs/promises";
+import { syncBuiltinESMExports } from "node:module";
 import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
@@ -333,12 +335,28 @@ describe("synthetic capture orchestration and packet boundary", () => {
       ),
     );
     const written = await writer.write(packet);
-    await expect(validateSyntheticPacketWithPython(written.path)).resolves.toEqual({
-      exitCode: 0,
-      unchanged: true,
-      markersPresent: true,
-    });
-  });
+    const originalSpawn = childProcess.spawn;
+    const controller = new AbortController();
+    // Sequential Python startup may exceed Vitest's generic timeout on shared hosts.
+    const childTimeout = setTimeout(() => controller.abort(), 15_000);
+    childProcess.spawn = ((
+      command: string,
+      args: readonly string[],
+      options?: SpawnOptions,
+    ) => originalSpawn(command, args, { ...options, signal: controller.signal })) as typeof originalSpawn;
+    syncBuiltinESMExports();
+    try {
+      await expect(validateSyntheticPacketWithPython(written.path)).resolves.toEqual({
+        exitCode: 0,
+        unchanged: true,
+        markersPresent: true,
+      });
+    } finally {
+      clearTimeout(childTimeout);
+      childProcess.spawn = originalSpawn;
+      syncBuiltinESMExports();
+    }
+  }, 20_000);
 });
 
 describe("synthetic capture self-check and static isolation", () => {

@@ -46,6 +46,149 @@ export type SelectionKey =
   | "HOME_DNB"
   | "AWAY_DNB";
 
+export const CAPTURED_FIXTURE_CANONICAL_STATUSES = [
+  "SCHEDULED",
+  "FINISHED",
+  "POSTPONED",
+  "CANCELLED",
+  "UNKNOWN",
+] as const;
+
+export type CapturedFixtureCanonicalStatus =
+  (typeof CAPTURED_FIXTURE_CANONICAL_STATUSES)[number];
+
+export type ExternalProviderFixtureIdentity = Readonly<{
+  providerKey: string;
+  providerFixtureId: string;
+}>;
+
+export type CapturedScorePair = Readonly<{
+  home: number | null;
+  away: number | null;
+}>;
+
+type CapturedFixtureStatusState =
+  | Readonly<{
+      canonicalStatus: "SCHEDULED" | "FINISHED";
+      automaticUseBlocked: false;
+    }>
+  | Readonly<{
+      canonicalStatus: "POSTPONED" | "CANCELLED" | "UNKNOWN";
+      automaticUseBlocked: true;
+    }>;
+
+type CapturedFixtureFields = Readonly<{
+  providerKey: string;
+  providerFixtureId: string;
+  capturedAtUtc: string;
+  sourceDate: string;
+  sourceTimestamp: string;
+  sourceTimezone: string;
+  rawStatusCode: string;
+  competition: Readonly<{
+    providerCompetitionId: string;
+    name: string;
+    country: string;
+  }>;
+  season: string;
+  round: string;
+  home: Readonly<{ providerTeamId: string; name: string }>;
+  away: Readonly<{ providerTeamId: string; name: string }>;
+  goals: CapturedScorePair;
+  score: Readonly<{
+    halftime: CapturedScorePair;
+    fulltime: CapturedScorePair;
+    extratime: CapturedScorePair;
+    penalty: CapturedScorePair;
+  }>;
+}>;
+
+export type CapturedFixture = CapturedFixtureFields & CapturedFixtureStatusState;
+
+export const PREDICTION_SELECTION_KEYS = ["HOME", "DRAW", "AWAY"] as const;
+
+export type PredictionSelectionKey = (typeof PREDICTION_SELECTION_KEYS)[number];
+export type DecimalProbabilityString = string;
+
+export type PredictionSelectionSnapshot<Key extends PredictionSelectionKey> = Readonly<{
+  selection: Key;
+  rawPercentage: string;
+  normalizedProbability: DecimalProbabilityString;
+}>;
+
+export type PredictionSelections = readonly [
+  PredictionSelectionSnapshot<"HOME">,
+  PredictionSelectionSnapshot<"DRAW">,
+  PredictionSelectionSnapshot<"AWAY">,
+];
+
+export type PredictionSnapshot = Readonly<{
+  providerKey: string;
+  providerFixtureId: string;
+  capturedAtUtc: string;
+  predictionCapturedBeforeKickoff: boolean;
+  selections: PredictionSelections;
+  probabilityTotalRaw: string;
+  predictedWinnerProviderTeamId: string | null;
+  predictedWinnerName: string | null;
+  winnerComment: string | null;
+  advice: string | null;
+  underOverRaw: string | null;
+  providerInternalTimestamp: string | null;
+  contentHash: string;
+  parserVersion: string;
+  policyVersion: string;
+}>;
+
+export type PredictionSelectionsValidation =
+  | Readonly<{ valid: true }>
+  | Readonly<{
+      valid: false;
+      errorCode:
+        | "PREDICTION_SELECTIONS_INCOMPLETE"
+        | "PREDICTION_SELECTION_DUPLICATE"
+        | "PREDICTION_SELECTION_INVALID";
+    }>;
+
+function isUnknownRecord(value: unknown): value is Readonly<Record<string, unknown>> {
+  return typeof value === "object" && value !== null && !Array.isArray(value);
+}
+
+export function validatePredictionSelections(input: unknown): PredictionSelectionsValidation {
+  if (!Array.isArray(input)) {
+    return Object.freeze({ valid: false, errorCode: "PREDICTION_SELECTIONS_INCOMPLETE" });
+  }
+  const selectionKeys: string[] = [];
+  for (const item of input) {
+    if (!isUnknownRecord(item) || typeof item.selection !== "string") {
+      return Object.freeze({ valid: false, errorCode: "PREDICTION_SELECTION_INVALID" });
+    }
+    selectionKeys.push(item.selection);
+  }
+  if (new Set(selectionKeys).size !== selectionKeys.length) {
+    return Object.freeze({ valid: false, errorCode: "PREDICTION_SELECTION_DUPLICATE" });
+  }
+  if (
+    selectionKeys.length !== PREDICTION_SELECTION_KEYS.length ||
+    PREDICTION_SELECTION_KEYS.some((selection) => !selectionKeys.includes(selection))
+  ) {
+    return Object.freeze({ valid: false, errorCode: "PREDICTION_SELECTIONS_INCOMPLETE" });
+  }
+  if (
+    input.some(
+      (item) =>
+        !isUnknownRecord(item) ||
+        typeof item.rawPercentage !== "string" ||
+        item.rawPercentage.length === 0 ||
+        typeof item.normalizedProbability !== "string" ||
+        item.normalizedProbability.length === 0,
+    )
+  ) {
+    return Object.freeze({ valid: false, errorCode: "PREDICTION_SELECTION_INVALID" });
+  }
+  return Object.freeze({ valid: true });
+}
+
 export type SyntheticFixture = Readonly<{
   source_fixture_id: string;
   source_name: string;

@@ -3,6 +3,7 @@ import json
 import os
 import subprocess
 import sys
+from decimal import Decimal
 from pathlib import Path
 from typing import Any
 
@@ -10,8 +11,14 @@ import pytest
 from pydantic import ValidationError
 
 from ou25_analytics.prospective.cli import validate_packet_path
-from ou25_analytics.prospective.contracts import packet_payload_hash
-from ou25_analytics.prospective.synthetic import make_synthetic_packet_payload
+from ou25_analytics.prospective.contracts import (
+    SourceNeutralProspectiveCapturePacket,
+    packet_payload_hash,
+)
+from ou25_analytics.prospective.synthetic import (
+    make_source_neutral_synthetic_packet_payload,
+    make_synthetic_packet_payload,
+)
 from ou25_analytics.prospective.validation import validate_packet
 
 
@@ -22,6 +29,23 @@ def rehash(payload: dict[str, Any]) -> dict[str, Any]:
 
 def changed() -> dict[str, Any]:
     return copy.deepcopy(make_synthetic_packet_payload())
+
+
+def source_neutral_changed() -> dict[str, Any]:
+    return copy.deepcopy(make_source_neutral_synthetic_packet_payload())
+
+
+def set_prediction_percentages(
+    payload: dict[str, Any],
+    values: tuple[tuple[str, str], tuple[str, str], tuple[str, str]],
+    total: str,
+) -> dict[str, Any]:
+    snapshot = payload["prediction_snapshots"][0]
+    for selection, (raw, normalized) in zip(snapshot["selections"], values, strict=True):
+        selection["raw_percentage"] = raw
+        selection["normalized_probability"] = normalized
+    snapshot["probability_total_raw"] = total
+    return rehash(payload)
 
 
 def assert_invalid(payload: dict[str, Any], message: str) -> None:
@@ -264,3 +288,280 @@ def test_synthetic_factory_contains_no_real_sports_data() -> None:
     assert all(item["competition_raw"].startswith("Synthetic ") for item in payload["fixtures"])
     assert all(item["home_team_raw"].startswith("Synthetic ") for item in payload["fixtures"])
     assert all(item["away_team_raw"].startswith("Synthetic ") for item in payload["fixtures"])
+
+
+def test_source_neutral_01_accepts_valid_packet() -> None:
+    packet, summary = validate_packet(make_source_neutral_synthetic_packet_payload())
+    assert isinstance(packet, SourceNeutralProspectiveCapturePacket)
+    assert summary.prediction_snapshot_count == 1
+
+
+def test_source_neutral_02_preserves_provider_key() -> None:
+    packet, _ = validate_packet(make_source_neutral_synthetic_packet_payload())
+    assert isinstance(packet, SourceNeutralProspectiveCapturePacket)
+    assert packet.prediction_snapshots[0].provider_key == "synthetic-prediction-provider"
+
+
+def test_source_neutral_03_preserves_external_provider_fixture_id() -> None:
+    packet, _ = validate_packet(make_source_neutral_synthetic_packet_payload())
+    assert isinstance(packet, SourceNeutralProspectiveCapturePacket)
+    assert packet.prediction_snapshots[0].provider_fixture_id == "SYNTH_EXTERNAL_FIXTURE_A"
+
+
+def test_source_neutral_04_preserves_captured_at_utc() -> None:
+    packet, _ = validate_packet(make_source_neutral_synthetic_packet_payload())
+    assert isinstance(packet, SourceNeutralProspectiveCapturePacket)
+    assert packet.prediction_snapshots[0].captured_at_utc.isoformat().startswith(
+        "2030-02-01T17:00:00"
+    )
+
+
+def test_source_neutral_05_preserves_three_selections() -> None:
+    packet, _ = validate_packet(make_source_neutral_synthetic_packet_payload())
+    assert isinstance(packet, SourceNeutralProspectiveCapturePacket)
+    assert [item.selection.value for item in packet.prediction_snapshots[0].selections] == [
+        "HOME",
+        "DRAW",
+        "AWAY",
+    ]
+
+
+def test_source_neutral_06_uses_decimal() -> None:
+    packet, _ = validate_packet(make_source_neutral_synthetic_packet_payload())
+    assert isinstance(packet, SourceNeutralProspectiveCapturePacket)
+    assert all(
+        isinstance(item.normalized_probability, Decimal)
+        for item in packet.prediction_snapshots[0].selections
+    )
+
+
+def test_source_neutral_07_rejects_float_contract_input() -> None:
+    payload = source_neutral_changed()
+    payload["prediction_snapshots"][0]["selections"][0]["normalized_probability"] = 0.45
+    assert_invalid(rehash(payload), "plain decimal string")
+
+
+def test_source_neutral_08_preserves_raw_percentage() -> None:
+    packet, _ = validate_packet(make_source_neutral_synthetic_packet_payload())
+    assert isinstance(packet, SourceNeutralProspectiveCapturePacket)
+    assert [item.raw_percentage for item in packet.prediction_snapshots[0].selections] == [
+        "45%",
+        "30%",
+        "25%",
+    ]
+
+
+def test_source_neutral_09_preserves_exact_normalized_probability() -> None:
+    packet, _ = validate_packet(make_source_neutral_synthetic_packet_payload())
+    assert isinstance(packet, SourceNeutralProspectiveCapturePacket)
+    serialized = packet.model_dump(mode="json")["prediction_snapshots"][0]["selections"]
+    assert [item["normalized_probability"] for item in serialized] == ["0.45", "0.3", "0.25"]
+
+
+def test_source_neutral_10_accepts_exact_100_sum() -> None:
+    packet, _ = validate_packet(make_source_neutral_synthetic_packet_payload())
+    assert isinstance(packet, SourceNeutralProspectiveCapturePacket)
+    assert packet.prediction_snapshots[0].probability_total_raw == "100%"
+
+
+def test_source_neutral_11_accepts_lower_sum_boundary() -> None:
+    payload = set_prediction_percentages(
+        source_neutral_changed(),
+        (("40%", "0.4"), ("30%", "0.3"), ("29.99%", "0.2999")),
+        "99.99%",
+    )
+    validate_packet(payload)
+
+
+def test_source_neutral_12_accepts_upper_sum_boundary() -> None:
+    payload = set_prediction_percentages(
+        source_neutral_changed(),
+        (("40%", "0.4"), ("30%", "0.3"), ("30.01%", "0.3001")),
+        "100.01%",
+    )
+    validate_packet(payload)
+
+
+def test_source_neutral_13_rejects_below_sum_boundary() -> None:
+    payload = set_prediction_percentages(
+        source_neutral_changed(),
+        (("40%", "0.4"), ("30%", "0.3"), ("29.98%", "0.2998")),
+        "99.98%",
+    )
+    assert_invalid(payload, "outside 99.99 to 100.01")
+
+
+def test_source_neutral_14_rejects_above_sum_boundary() -> None:
+    payload = set_prediction_percentages(
+        source_neutral_changed(),
+        (("40%", "0.4"), ("30%", "0.3"), ("30.02%", "0.3002")),
+        "100.02%",
+    )
+    assert_invalid(payload, "outside 99.99 to 100.01")
+
+
+def test_source_neutral_15_rejects_duplicate_selection() -> None:
+    payload = source_neutral_changed()
+    selections = payload["prediction_snapshots"][0]["selections"]
+    selections[1] = copy.deepcopy(selections[0])
+    assert_invalid(rehash(payload), "canonical HOME DRAW AWAY")
+
+
+def test_source_neutral_16_rejects_missing_selection() -> None:
+    payload = source_neutral_changed()
+    payload["prediction_snapshots"][0]["selections"].pop()
+    assert_invalid(rehash(payload), "at least 3")
+
+
+def test_source_neutral_17_rejects_additional_selection() -> None:
+    payload = source_neutral_changed()
+    payload["prediction_snapshots"][0]["selections"].append(
+        {"selection": "HOME", "raw_percentage": "0%", "normalized_probability": "0"}
+    )
+    assert_invalid(rehash(payload), "at most 3")
+
+
+def test_source_neutral_18_rejects_invalid_raw_percentage() -> None:
+    payload = source_neutral_changed()
+    payload["prediction_snapshots"][0]["selections"][0]["raw_percentage"] = "45"
+    assert_invalid(rehash(payload), "String should match pattern")
+
+
+def test_source_neutral_19_rejects_decimal_out_of_range() -> None:
+    payload = source_neutral_changed()
+    payload["prediction_snapshots"][0]["selections"][0]["normalized_probability"] = "1.1"
+    assert_invalid(rehash(payload), "plain decimal string")
+
+
+def test_source_neutral_20_rejects_scientific_notation() -> None:
+    payload = source_neutral_changed()
+    payload["prediction_snapshots"][0]["selections"][0]["normalized_probability"] = "4.5e-1"
+    assert_invalid(rehash(payload), "plain decimal string")
+
+
+@pytest.mark.parametrize("value", ["NaN", "nan"])
+def test_source_neutral_21_rejects_nan(value: str) -> None:
+    payload = source_neutral_changed()
+    payload["prediction_snapshots"][0]["selections"][0]["normalized_probability"] = value
+    assert_invalid(rehash(payload), "plain decimal string")
+
+
+@pytest.mark.parametrize("value", ["Infinity", "-Infinity"])
+def test_source_neutral_22_rejects_infinity(value: str) -> None:
+    payload = source_neutral_changed()
+    payload["prediction_snapshots"][0]["selections"][0]["normalized_probability"] = value
+    assert_invalid(rehash(payload), "plain decimal string")
+
+
+def test_source_neutral_23_rejects_invalid_captured_at() -> None:
+    payload = source_neutral_changed()
+    payload["prediction_snapshots"][0]["captured_at_utc"] = "invalid"
+    assert_invalid(rehash(payload), "explicit UTC Z")
+
+
+def test_source_neutral_24_rejects_captured_at_kickoff() -> None:
+    payload = source_neutral_changed()
+    snapshot = payload["prediction_snapshots"][0]
+    snapshot["captured_at_utc"] = snapshot["kickoff_at_utc"]
+    snapshot["prediction_captured_before_kickoff"] = False
+    assert_invalid(rehash(payload), "strictly before kickoff")
+
+
+def test_source_neutral_25_rejects_captured_after_kickoff() -> None:
+    payload = source_neutral_changed()
+    snapshot = payload["prediction_snapshots"][0]
+    snapshot["captured_at_utc"] = "2030-02-01T18:00:00.001Z"
+    snapshot["prediction_captured_before_kickoff"] = False
+    assert_invalid(rehash(payload), "strictly before kickoff")
+
+
+def test_source_neutral_26_rejects_contradictory_prematch_boolean() -> None:
+    payload = source_neutral_changed()
+    payload["prediction_snapshots"][0]["prediction_captured_before_kickoff"] = False
+    assert_invalid(rehash(payload), "contradicts chronology")
+
+
+def test_source_neutral_27_accepts_null_provider_internal_timestamp() -> None:
+    packet, _ = validate_packet(make_source_neutral_synthetic_packet_payload())
+    assert isinstance(packet, SourceNeutralProspectiveCapturePacket)
+    assert packet.prediction_snapshots[0].provider_internal_timestamp is None
+
+
+def test_source_neutral_28_provider_timestamp_does_not_control_chronology() -> None:
+    payload = source_neutral_changed()
+    payload["prediction_snapshots"][0]["provider_internal_timestamp"] = "2999-01-01T00:00:00Z"
+    packet, _ = validate_packet(rehash(payload))
+    assert isinstance(packet, SourceNeutralProspectiveCapturePacket)
+
+
+def test_source_neutral_29_preserves_winner_metadata() -> None:
+    packet, _ = validate_packet(make_source_neutral_synthetic_packet_payload())
+    assert isinstance(packet, SourceNeutralProspectiveCapturePacket)
+    prediction = packet.prediction_snapshots[0]
+    assert prediction.predicted_winner_provider_team_id == "SYNTH_TEAM_HOME_A"
+    assert prediction.winner_comment == "Synthetic winner metadata"
+
+
+def test_source_neutral_30_preserves_advice_without_double_chance() -> None:
+    packet, _ = validate_packet(make_source_neutral_synthetic_packet_payload())
+    assert isinstance(packet, SourceNeutralProspectiveCapturePacket)
+    prediction = packet.prediction_snapshots[0]
+    assert prediction.advice == "Synthetic advice metadata only"
+    assert [item.selection.value for item in prediction.selections] == ["HOME", "DRAW", "AWAY"]
+
+
+def test_source_neutral_31_preserves_under_over_as_metadata() -> None:
+    packet, _ = validate_packet(make_source_neutral_synthetic_packet_payload())
+    assert isinstance(packet, SourceNeutralProspectiveCapturePacket)
+    assert packet.prediction_snapshots[0].under_over_raw == "Synthetic under-over metadata only"
+
+
+@pytest.mark.parametrize(
+    ("field", "value"),
+    [
+        ("outcome", "HOME"),
+        ("result1X2", "HOME"),
+        ("score", {"fulltime": {"home": 1, "away": 0}}),
+        ("settlement", {"status": "WIN"}),
+    ],
+)
+def test_source_neutral_32_to_35_rejects_postmatch_fields(field: str, value: object) -> None:
+    payload = source_neutral_changed()
+    payload["prediction_snapshots"][0][field] = value
+    assert_invalid(rehash(payload), "Extra inputs are not permitted")
+
+
+def test_source_neutral_36_synthetic_packet_validates() -> None:
+    packet, _ = validate_packet(make_source_neutral_synthetic_packet_payload())
+    assert isinstance(packet, SourceNeutralProspectiveCapturePacket)
+    assert packet.source_metadata.synthetic
+    assert packet.outcomes == []
+
+
+def test_source_neutral_37_serialization_and_parse_are_deterministic() -> None:
+    first, _ = validate_packet(make_source_neutral_synthetic_packet_payload())
+    serialized = first.model_dump(mode="json")
+    reparsed, _ = validate_packet(rehash(serialized))
+    assert reparsed.model_dump(mode="json") == serialized
+
+
+def test_source_neutral_38_historical_packet_still_validates() -> None:
+    packet, summary = validate_packet(make_synthetic_packet_payload())
+    assert not isinstance(packet, SourceNeutralProspectiveCapturePacket)
+    assert summary.prediction_snapshot_count == 0
+
+
+def test_source_neutral_39_wrong_schema_version_is_rejected() -> None:
+    payload = source_neutral_changed()
+    payload["packet_schema_version"] = "3"
+    assert_invalid(rehash(payload), "Input should be '2'")
+
+
+def test_source_neutral_40_errors_hide_complete_packet() -> None:
+    payload = source_neutral_changed()
+    payload["packet_schema_version"] = "invalid"
+    with pytest.raises(ValidationError) as captured:
+        validate_packet(rehash(payload))
+    message = str(captured.value)
+    assert payload["packet_id"] not in message
+    assert "input_value" not in message

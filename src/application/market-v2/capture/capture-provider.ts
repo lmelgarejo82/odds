@@ -1,10 +1,12 @@
 import { CaptureError } from "@/domain/market-v2/capture/errors";
 import type {
+  CapturedFixture,
   CaptureRunContext,
   ClosingObservation,
   ForebetObservation,
   OddsObservation,
   OutcomeObservation,
+  PredictionSnapshot,
   ProviderCapture,
   SyntheticFixture,
 } from "@/domain/market-v2/capture/types";
@@ -20,10 +22,17 @@ export interface CaptureProvider {
   discoverFixtures?(
     context: CaptureRunContext,
   ): Promise<ProviderCapture<readonly EvidenceDraft<SyntheticFixture>[]>>;
+  discoverCapturedFixtures?(
+    context: CaptureRunContext,
+  ): Promise<ProviderCapture<readonly CapturedFixture[]>>;
   captureForebet?(
     context: CaptureRunContext,
     fixture: SyntheticFixture,
   ): Promise<ProviderCapture<EvidenceDraft<ForebetObservation>>>;
+  capturePredictions?(
+    context: CaptureRunContext,
+    fixture: CapturedFixture,
+  ): Promise<ProviderCapture<PredictionSnapshot>>;
   captureOdds?(
     context: CaptureRunContext,
     fixture: SyntheticFixture,
@@ -39,12 +48,24 @@ export interface CaptureProvider {
 }
 
 const CAPABILITY_METHODS = {
-  FIXTURES: "discoverFixtures",
   FOREBET: "captureForebet",
+  PREDICTIONS: "capturePredictions",
   ODDS: "captureOdds",
   CLOSING: "captureClosing",
   OUTCOMES: "captureOutcomes",
-} as const satisfies Record<ProviderCapability, keyof CaptureProvider>;
+} as const satisfies Record<Exclude<ProviderCapability, "FIXTURES">, keyof CaptureProvider>;
+
+function capabilityImplementationCount(
+  provider: CaptureProvider,
+  capability: ProviderCapability,
+): number {
+  if (capability === "FIXTURES") {
+    return [provider.discoverFixtures, provider.discoverCapturedFixtures].filter(
+      (method) => typeof method === "function",
+    ).length;
+  }
+  return typeof provider[CAPABILITY_METHODS[capability]] === "function" ? 1 : 0;
+}
 
 export function assertProviderCapabilities(
   provider: CaptureProvider,
@@ -60,11 +81,18 @@ export function assertProviderCapabilities(
       sanitizedMessage: "provider capabilities must be unique",
     });
   }
-  for (const [capability, method] of Object.entries(CAPABILITY_METHODS) as [
-    ProviderCapability,
-    (typeof CAPABILITY_METHODS)[ProviderCapability],
-  ][]) {
-    const implemented = typeof provider[method] === "function";
+  for (const capability of ["FIXTURES", ...Object.keys(CAPABILITY_METHODS)] as ProviderCapability[]) {
+    const implementationCount = capabilityImplementationCount(provider, capability);
+    if (capability === "FIXTURES" && implementationCount > 1) {
+      throw new CaptureError({
+        code: "PROVIDER_CAPABILITY_UNAVAILABLE",
+        retryable: false,
+        providerKey: provider.providerKey,
+        stage,
+        sanitizedMessage: "provider must expose only one fixture discovery contract",
+      });
+    }
+    const implemented = implementationCount === 1;
     if (declared.has(capability) !== implemented) {
       throw new CaptureError({
         code: "PROVIDER_CAPABILITY_UNAVAILABLE",
