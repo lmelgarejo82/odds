@@ -1,0 +1,20 @@
+[Unit]
+Description=Odds Market V2 daily D+1 ranking
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+User=yvaforma
+Group=yvaforma
+WorkingDirectory=/home/yvaforma/odds/ou25-market-v2
+EnvironmentFile=/etc/odds-market-v2/providers.env
+Environment=PATH=/home/yvaforma/.local/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
+ExecStart=/usr/bin/flock --nonblock /run/lock/odds-market-v2-daily.lock /home/yvaforma/.local/bin/npm run market-v2:daily -- --database-url file:/var/lib/odds-market-v2/market-v2.sqlite --evidence-root /var/lib/odds-market-v2/evidence --max-fixtures 30 --deep-candidates 10 --top 10 --mode provisional --allow-network
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=full
+ProtectHome=read-only
+ReadWritePaths=/var/lib/odds-market-v2 /run/lock
+UMask=0077
+TimeoutStartSec=15min

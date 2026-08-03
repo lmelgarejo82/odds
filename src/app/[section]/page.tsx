@@ -5,6 +5,7 @@ import { HistoricalAnalysisStatus } from "@/components/historical-analysis-statu
 import { MarketPriorityStatus } from "@/components/market-priority-status";
 import { ProspectiveShadowStatus } from "@/components/prospective-shadow-status";
 import { StatareaSemanticsStatus } from "@/components/statarea-semantics-status";
+import { DailyRankingStatus } from "@/components/daily-ranking-status";
 
 const sections: Record<string, string> = {
   fuentes: "Fuentes",
@@ -26,6 +27,7 @@ const databaseBackedSections = new Set([
   "semantica-statarea",
   "sistema-prioridad",
   "ejecucion-prospectiva",
+  "mejores-partidos",
 ]);
 
 export function generateStaticParams() {
@@ -50,6 +52,7 @@ export default async function SectionPage({
   if (section === "semantica-statarea") return <StatareaSemanticsStatus />;
   if (section === "sistema-prioridad") return <MarketPriorityStatus />;
   if (section === "ejecucion-prospectiva") return <ProspectiveShadowStatus />;
+  if (section === "mejores-partidos") return <DailyRankingStatus />;
 
   return <EmptyState title={title} />;
 }
