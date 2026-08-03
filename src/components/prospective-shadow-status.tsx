@@ -14,6 +14,13 @@ type CandidatePayload = {
 };
 
 const familyLabel: Record<string, string> = { DOUBLE_CHANCE: "Doble oportunidad", OU25: "Más/Menos 2.5", SAME_MATCH_COMBINATION: "Combinación del mismo partido" };
+const asuncionDateTimeFormatter = new Intl.DateTimeFormat("es-PY", {
+  timeZone: "America/Asuncion",
+  dateStyle: "medium",
+  timeStyle: "short",
+});
+
+export const formatProspectiveDateTime = (value: Date) => asuncionDateTimeFormatter.format(value);
 
 export async function ProspectiveShadowStatus() {
   const run = await database.prospectiveShadowRun.findFirst({ orderBy: { createdAt: "desc" } });
@@ -31,7 +38,7 @@ export async function ProspectiveShadowStatus() {
   const counts = JSON.parse(run.countsJson) as { selections: Record<string, number> };
   return <section className="panel priority-panel prospective-panel">
     <span className="eyebrow">B009 · sombra · append-only</span>
-    <div className="section-heading"><div><h1>Ejecución prospectiva</h1><p>{run.sportsDate.toISOString().slice(0, 10)} · {run.mode} · {run.status}</p></div><span className="date">Congelado {run.frozenAt.toISOString()}</span></div>
+    <div className="section-heading"><div><h1>Ejecución prospectiva</h1><p>{run.sportsDate.toISOString().slice(0, 10)} · {run.mode} · {run.status}</p></div><span className="date">Congelado {formatProspectiveDateTime(run.frozenAt)}</span></div>
     <dl className="semantic-metadata priority-metadata">
       <div><dt>Forebet snapshot</dt><dd><code>{run.forebetSnapshotId}</code></dd></div>
       <div><dt>Statarea Legacy snapshot</dt><dd><code>{run.statareaSnapshotId}</code></dd></div>
@@ -57,7 +64,7 @@ export async function ProspectiveShadowStatus() {
         const familyCandidates = ids.flatMap((candidateId) => candidateById.get(candidateId) ? [candidateById.get(candidateId)!] : []);
         const quotes = quotesByAssessment.get(assessment.id) ?? [];
         return <article className="priority-fixture" key={assessment.id}>
-          <div className="priority-fixture-heading"><div><span>{assessment.fixtureIdentity.countryRaw ?? "País sin normalizar"} · {assessment.fixtureIdentity.competitionRaw ?? "Competición raw"} · {assessment.fixtureIdentity.scheduledKickoffRaw ?? "Hora raw no disponible"}</span><h2>{assessment.fixtureIdentity.homeTeamRaw} <em>vs</em> {assessment.fixtureIdentity.awayTeamRaw}</h2></div><strong className={`priority-status status-${assessment.prePriceSelectionStatus.toLowerCase()}`}>{assessment.prePriceSelectionStatus}</strong></div>
+          <div className="priority-fixture-heading"><div><span>{assessment.fixtureIdentity.countryRaw ?? "País sin normalizar"} · {assessment.fixtureIdentity.competitionRaw ?? "Competición raw"} · Horario pendiente de normalización</span><h2>{assessment.fixtureIdentity.homeTeamRaw} <em>vs</em> {assessment.fixtureIdentity.awayTeamRaw}</h2></div><strong className={`priority-status status-${assessment.prePriceSelectionStatus.toLowerCase()}`}>{assessment.prePriceSelectionStatus}</strong></div>
           <div className="priority-family-grid">
             {familyCandidates.slice(0, 3).map((candidate) => <section className="priority-family-card" key={candidate.id}><span>{familyLabel[candidate.family]}</span><h3>{candidate.marketCode}</h3><div className="priority-score"><strong>{candidate.finalPriorityScore.toFixed(2)}</strong><small>{candidate.priorityClass}</small></div><dl><div><dt>Signal</dt><dd>{candidate.signalScore.toFixed(2)}/40</dd></div><div><dt>Histórico agregado</dt><dd>{candidate.historicalEvidenceScore.toFixed(2)}/40</dd></div><div><dt>Calidad</dt><dd>{candidate.dataQualityScore.toFixed(2)}/20</dd></div></dl><p>Solicitud de cuota: {quotes.some((quote) => quote.internalMarketCode === candidate.marketCode) ? "pendiente" : "no requerida"}</p></section>)}
           </div>
