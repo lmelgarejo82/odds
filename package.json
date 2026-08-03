@@ -44,6 +44,7 @@
     "market-v2:api-football": "tsx scripts/market-v2-api-football.ts",
     "market-v2:daily": "tsx scripts/market-v2-daily.ts",
     "market-v2:daily:derive": "tsx scripts/market-v2-daily-derive.ts"
+    ,"market-v2:team-aliases": "tsx scripts/market-v2-team-aliases.ts"
   },
   "prisma": {
     "seed": "tsx prisma/seed.ts"
