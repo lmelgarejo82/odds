@@ -1,6 +1,8 @@
 import { readFileSync, readdirSync } from "node:fs";
 import { join } from "node:path";
-import { describe, expect, it } from "vitest";
+import { renderToStaticMarkup } from "react-dom/server";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { formatProspectiveDateTime, ProspectiveShadowStatus } from "@/components/prospective-shadow-status";
 import runJsonSchema from "@/contracts/schemas/prospective-shadow-run.schema.json";
 import assessmentJsonSchema from "@/contracts/schemas/prospective-fixture-assessment.schema.json";
 import quoteJsonSchema from "@/contracts/schemas/quote-request-plan.schema.json";
@@ -15,6 +17,16 @@ import { projectProspectiveSemanticRow } from "@/domain/prospective/semantic-pro
 import { MATCH_CONFIGURATION_HASH } from "@/domain/reconciliation/configuration";
 import { buildForebetUrl } from "@/domain/forebet/constants";
 import { buildLegacyStatareaUrl } from "@/domain/statarea/legacy-constants";
+
+const databaseMock = vi.hoisted(() => ({
+  prospectiveShadowRun: { findFirst: vi.fn() },
+  matchRun: { findUniqueOrThrow: vi.fn() },
+  prospectiveCandidateSnapshot: { findMany: vi.fn() },
+  prospectiveFixtureAssessment: { findMany: vi.fn() },
+  quoteRequestPlan: { findMany: vi.fn() },
+}));
+
+vi.mock("@/infrastructure/database", () => ({ database: databaseMock }));
 
 const root = process.cwd();
 const source = (path: string) => readFileSync(join(root, path), "utf8");
@@ -95,4 +107,109 @@ describe("diagnóstico, append-only, replay y UI", () => {
   it("la UI contiene los textos obligatorios", () => { const ui = source("src/components/prospective-shadow-status.tsx"); expect(ui).toContain("Esta decisión fue congelada antes del resultado."); expect(ui).toContain("Es una preferencia previa al precio y puede cambiar al incorporar la cuota."); expect(ui).toContain("Cuota: pendiente"); expect(ui).toContain("Valor de mercado: desconocido"); });
   it("la UI no muestra estados prohibidos", () => expect(source("src/components/prospective-shadow-status.tsx")).not.toMatch(/HIT|MISS|ranking|stake|rentabilidad|apuesta/i));
   it("B010 no existe", () => { const files = ["src", "scripts", "prisma"].flatMap((directory) => readdirSync(join(root, directory), { recursive: true }).map((path) => `${directory}/${String(path)}`)); expect(files.join("\n")).not.toMatch(/(?:^|[\\/])b010(?:[\\/.-]|$)/i); });
+});
+
+describe("presentación temporal de ejecución prospectiva", () => {
+  const originalTimezone = process.env.TZ;
+  const frozenAt = new Date("2026-08-04T00:00:00.000Z");
+  const ambiguousKickoff = "04/08/2026 20:30";
+  const renderComponent = async () => renderToStaticMarkup(await ProspectiveShadowStatus());
+
+  const arrangeStoredRun = () => {
+    databaseMock.prospectiveShadowRun.findFirst.mockResolvedValue({
+      id: "prospective-run-1",
+      matchRunId: "match-run-1",
+      sportsDate: new Date("2026-08-04T00:00:00.000Z"),
+      mode: "SHADOW",
+      status: "COMPLETED",
+      frozenAt,
+      forebetSnapshotId: "forebet-snapshot-1",
+      statareaSnapshotId: "statarea-snapshot-1",
+      matcherVersion: "matcher-1",
+      matcherConfigurationHash: "a".repeat(64),
+      registryHash: "b".repeat(64),
+      priorityPolicyHash: "c".repeat(64),
+      countsJson: JSON.stringify({ selections: { NONE: 1 } }),
+    });
+    databaseMock.matchRun.findUniqueOrThrow.mockResolvedValue({ matchedCount: 1, ambiguousCount: 0, conflictCount: 0 });
+    databaseMock.prospectiveCandidateSnapshot.findMany.mockResolvedValue([]);
+    databaseMock.prospectiveFixtureAssessment.findMany.mockResolvedValue([
+      {
+        contractJson: JSON.stringify({
+          id: "assessment-1",
+          matchDecisionId: "decision-1",
+          fixtureIdentity: {
+            countryRaw: "Paraguay",
+            competitionRaw: "Liga sintética",
+            homeTeamRaw: "Equipo Norte",
+            awayTeamRaw: "Equipo Sur",
+            scheduledKickoffRaw: ambiguousKickoff,
+          },
+          dcCandidateId: null,
+          ouCandidateId: null,
+          combinationCandidateId: null,
+          prePricePreference: null,
+          prePriceSecondAlternative: null,
+          prePriceScoreMargin: null,
+          prePriceSelectionStatus: "NONE",
+          warnings: [],
+        }),
+      },
+    ]);
+    databaseMock.quoteRequestPlan.findMany.mockResolvedValue([]);
+  };
+
+  beforeEach(() => {
+    vi.clearAllMocks();
+    databaseMock.prospectiveShadowRun.findFirst.mockResolvedValue(null);
+  });
+
+  afterEach(() => {
+    if (originalTimezone === undefined) delete process.env.TZ;
+    else process.env.TZ = originalTimezone;
+  });
+
+  it("formatea frozenAt en es-PY y America/Asuncion sin depender del TZ del proceso", () => {
+    const expected = new Intl.DateTimeFormat("es-PY", {
+      timeZone: "America/Asuncion",
+      dateStyle: "medium",
+      timeStyle: "short",
+    }).format(frozenAt);
+
+    process.env.TZ = "UTC";
+    const fromUtcProcess = formatProspectiveDateTime(frozenAt);
+    process.env.TZ = "Asia/Tokyo";
+    const fromTokyoProcess = formatProspectiveDateTime(frozenAt);
+
+    expect(fromUtcProcess).toBe(expected);
+    expect(fromTokyoProcess).toBe(expected);
+    expect(fromUtcProcess).not.toContain(frozenAt.toISOString());
+    expect(fromUtcProcess).not.toMatch(/Z(?:\s|$)/);
+  });
+
+  it("sigue renderizando el estado vacío cuando no existe un run", async () => {
+    expect(await renderComponent()).toContain("Ejecución prospectiva pendiente");
+  });
+
+  it("renderiza equipos y sustituye el kickoff raw ambiguo por el fallback", async () => {
+    arrangeStoredRun();
+
+    const html = await renderComponent();
+
+    expect(html).toContain(`Congelado ${formatProspectiveDateTime(frozenAt)}`);
+    expect(html).not.toContain(frozenAt.toISOString());
+    expect(html).toContain("Equipo Norte");
+    expect(html).toContain("Equipo Sur");
+    expect(html).toContain("Horario pendiente de normalización");
+    expect(html).not.toContain(ambiguousKickoff);
+  });
+
+  it("no interpreta el raw ni introduce una dependencia del navegador", () => {
+    const ui = source("src/components/prospective-shadow-status.tsx");
+
+    expect(ui).not.toMatch(/new Date\s*\([^)]*scheduledKickoffRaw/);
+    expect(ui).not.toContain("assessment.fixtureIdentity.scheduledKickoffRaw");
+    expect(ui).not.toMatch(/[\"']use client[\"']/);
+    expect(ui).toContain('timeZone: "America/Asuncion"');
+  });
 });
