@@ -104,7 +104,8 @@ export class OperationalRawEvidenceStore implements RawEvidenceStore {
   async publish(candidate: RawEvidenceCandidate): Promise<RawEvidenceStoreResult> {
     if (!this.#initialized) return failed("STORE_NOT_INITIALIZED");
     if (
-      candidate.providerKey !== "api-football" ||
+      (candidate.providerKey !== "api-football" &&
+        candidate.providerKey !== "the-odds-api") ||
       !SAFE_LOGICAL_REFERENCE.test(candidate.endpointKey) ||
       !SAFE_LOGICAL_REFERENCE.test(candidate.sourceReference) ||
       !SAFE_MEDIA_TYPE.test(candidate.mediaType) ||
