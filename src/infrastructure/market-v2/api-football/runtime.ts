@@ -6,6 +6,7 @@ import { isAbsolute, join, resolve } from "node:path";
 import { promisify } from "node:util";
 import {
   collectPrematch,
+  type PrematchCaptureProviderPort,
   type PrematchTarget,
 } from "@/application/market-v2/api-football/collect-prematch";
 import {
@@ -19,7 +20,7 @@ import type {
   RawEvidenceStore,
 } from "@/application/market-v2/capture/raw-evidence-store";
 import { isNormalizedUtcTimestamp } from "@/domain/market-v2/validation";
-import type { CaptureClock } from "@/domain/market-v2/capture/types";
+import type { CaptureClock, CapturedFixture } from "@/domain/market-v2/capture/types";
 import { OperationalRawEvidenceStore } from "@/infrastructure/market-v2/capture/operational-evidence-store";
 import { ApiFootballClient, type ApiFootballFetch } from "./client";
 import { buildApiFootballConfig } from "./config";
@@ -29,7 +30,11 @@ import {
   mapApiFootballPrediction,
   mapApiFootballResult,
 } from "./mappers";
-import { ApiFootballProvider, type ApiFootballProviderMappers } from "./provider";
+import {
+  ApiFootballProvider,
+  type ApiFootballProviderMappers,
+  type GovernedPredictionInput,
+} from "./provider";
 import {
   evaluateApiFootballRateLimitResponse,
   parseApiFootballRateLimits,
@@ -71,6 +76,7 @@ export type ApiFootballRunnerArguments = Readonly<{
   maxAttempts: number;
   dailyThreshold: number;
   mode: ApiFootballRunnerMode;
+  prevalidatedBinding: boolean;
 }>;
 
 export type ApiFootballRunnerTarget = PrematchTarget & OutcomeTarget;
@@ -107,6 +113,10 @@ export type ApiFootballRunnerResult = Readonly<{
   networkCalls: number;
   credentialsRead: number;
   sharedBudgetAndBreaker: boolean;
+  bindingMode: "DISCOVERY" | "PREVALIDATED";
+  bindingValidated: boolean;
+  fixtureDiscoveryCalls: number;
+  predictionCalls: number;
   temporaryDatabasePath?: string;
   temporaryEvidenceRoot?: string;
   temporaryDatabaseRemoved: boolean;
@@ -133,6 +143,12 @@ interface RuntimePrismaClient {
     findUnique(args: unknown): Promise<Readonly<{
       id: string;
       kickoffAtUtc: Date;
+      status: "SCHEDULED" | "POSTPONED" | "CANCELLED" | "STARTED" | "FINISHED" | "UNKNOWN";
+      localTeamId: string;
+      awayTeamId: string;
+      competitionKey: string;
+      localTeam: Readonly<{ id: string; displayName: string }>;
+      awayTeam: Readonly<{ id: string; displayName: string }>;
     }> | null>;
     count(): Promise<number>;
   };
@@ -142,6 +158,9 @@ interface RuntimePrismaClient {
   readonly providerFixtureIdentity: {
     create(args: unknown): Promise<unknown>;
     findUnique(args: unknown): Promise<Readonly<{
+      id: string;
+      providerId: string;
+      providerFixtureId: string;
       fixtureId: string;
       providerCompetitionId: string | null;
       providerHomeTeamId: string | null;
@@ -150,6 +169,20 @@ interface RuntimePrismaClient {
       sourceDateRaw: string | null;
       sourceTimezone: string | null;
     }> | null>;
+    findMany(args: unknown): Promise<readonly Readonly<{
+      id: string;
+      providerId: string;
+      providerFixtureId: string;
+      fixtureId: string;
+      providerCompetitionId: string | null;
+      providerHomeTeamId: string | null;
+      providerAwayTeamId: string | null;
+      season: string | null;
+      round: string | null;
+      sourceDateRaw: string | null;
+      sourceTimestamp: string | null;
+      sourceTimezone: string | null;
+    }>[]>;
     count(): Promise<number>;
   };
   readonly predictionSnapshot: { count(): Promise<number> };
@@ -246,11 +279,17 @@ export function parseApiFootballRunnerArguments(argv: readonly string[]): ApiFoo
   const values = new Map<string, string>();
   let dryRun = false;
   let allowNetwork = false;
+  let prevalidatedBinding = false;
   for (let index = 1; index < argv.length; index += 1) {
     const argument = argv[index];
-    if (argument === "--dry-run" || argument === "--allow-network") {
+    if (
+      argument === "--dry-run" ||
+      argument === "--allow-network" ||
+      argument === "--prevalidated-binding"
+    ) {
       if (argument === "--dry-run") dryRun = true;
       if (argument === "--allow-network") allowNetwork = true;
+      if (argument === "--prevalidated-binding") prevalidatedBinding = true;
       continue;
     }
     if (!["--target", "--database-url", "--evidence-root", "--max-attempts", "--daily-threshold"].includes(argument)) {
@@ -264,6 +303,10 @@ export function parseApiFootballRunnerArguments(argv: readonly string[]): ApiFoo
     index += 1;
   }
   if (dryRun === allowNetwork) return fail("EXPLICIT_MODE_REQUIRED");
+  if (prevalidatedBinding && command !== "prematch") {
+    return fail("PREVALIDATED_BINDING_PREMATCH_ONLY");
+  }
+  if (prevalidatedBinding && dryRun) return fail("PREVALIDATED_BINDING_REQUIRES_NETWORK_MODE");
   const targetFile = values.get("--target");
   const databaseUrl = values.get("--database-url");
   const evidenceRoot = values.get("--evidence-root");
@@ -278,6 +321,7 @@ export function parseApiFootballRunnerArguments(argv: readonly string[]): ApiFoo
     maxAttempts: integerArgument(values.get("--max-attempts"), true, "MAX_ATTEMPTS_INVALID"),
     dailyThreshold: integerArgument(values.get("--daily-threshold"), false, "DAILY_THRESHOLD_INVALID"),
     mode: dryRun ? "DRY_RUN" : "NETWORK",
+    prevalidatedBinding,
   });
 }
 
@@ -579,6 +623,127 @@ async function assertNetworkDatabase(
   }
 }
 
+function normalizedName(value: string): string {
+  return value.trim().normalize("NFC");
+}
+
+async function validatePrevalidatedBinding(
+  prisma: RuntimePrismaClient,
+  target: ApiFootballRunnerTarget,
+  clock: CaptureClock,
+): Promise<CapturedFixture> {
+  const fixture = await prisma.fixture.findUnique({
+    where: { id: target.canonicalFixtureId },
+    include: { localTeam: true, awayTeam: true },
+  });
+  if (fixture === null) return fail("PREVALIDATED_FIXTURE_REQUIRED");
+  const provider = await prisma.provider.findUnique({ where: { stableKey: "api-football" } });
+  if (provider === null) return fail("PREVALIDATED_PROVIDER_REQUIRED");
+  const identities = await prisma.providerFixtureIdentity.findMany({
+    where: { fixtureId: target.canonicalFixtureId },
+  });
+  if (identities.length === 0) return fail("PREVALIDATED_IDENTITY_REQUIRED");
+  if (identities.length !== 1) return fail("PREVALIDATED_IDENTITY_CONFLICT");
+  const identity = identities[0];
+  const providerIdentity = await prisma.providerFixtureIdentity.findUnique({
+    where: {
+      providerId_providerFixtureId: {
+        providerId: provider.id,
+        providerFixtureId: target.providerFixtureId,
+      },
+    },
+  });
+  if (providerIdentity === null || providerIdentity.id !== identity.id) {
+    return fail("PREVALIDATED_IDENTITY_CONFLICT");
+  }
+  const sourceDateUtc = identity.sourceDateRaw === null ||
+      !Number.isFinite(Date.parse(identity.sourceDateRaw))
+    ? null
+    : new Date(identity.sourceDateRaw).toISOString();
+  if (
+    identity.providerId !== provider.id ||
+    identity.providerFixtureId !== target.providerFixtureId ||
+    identity.fixtureId !== target.canonicalFixtureId ||
+    identity.providerCompetitionId !== target.providerCompetitionId ||
+    identity.season !== target.season ||
+    identity.providerHomeTeamId !== target.homeProviderTeamId ||
+    identity.providerAwayTeamId !== target.awayProviderTeamId ||
+    sourceDateUtc !== target.kickoffUtc ||
+    identity.sourceTimezone !== target.sourceTimezone ||
+    fixture.kickoffAtUtc.toISOString() !== target.kickoffUtc ||
+    fixture.status !== "SCHEDULED" ||
+    fixture.localTeamId !== fixture.localTeam.id ||
+    fixture.awayTeamId !== fixture.awayTeam.id ||
+    fixture.localTeamId === fixture.awayTeamId ||
+    normalizedName(fixture.localTeam.displayName) !== normalizedName(target.homeName) ||
+    normalizedName(fixture.awayTeam.displayName) !== normalizedName(target.awayName)
+  ) {
+    return fail("PREVALIDATED_BINDING_MISMATCH");
+  }
+  const capturedAtUtc = clock.nowUtc();
+  if (
+    !isNormalizedUtcTimestamp(capturedAtUtc) ||
+    Date.parse(capturedAtUtc) >= Date.parse(target.kickoffUtc)
+  ) {
+    return fail("PREVALIDATED_KICKOFF_NOT_FUTURE");
+  }
+  const noScore = Object.freeze({ home: null, away: null });
+  return Object.freeze({
+    providerKey: "api-football",
+    providerFixtureId: target.providerFixtureId,
+    capturedAtUtc,
+    sourceDate: target.kickoffUtc,
+    sourceTimestamp: identity.sourceTimestamp ?? String(Math.floor(Date.parse(target.kickoffUtc) / 1_000)),
+    sourceTimezone: "UTC",
+    rawStatusCode: "NS",
+    competition: Object.freeze({
+      providerCompetitionId: target.providerCompetitionId,
+      name: fixture.competitionKey,
+      country: "",
+    }),
+    season: target.season,
+    round: identity.round ?? "",
+    home: Object.freeze({ providerTeamId: target.homeProviderTeamId, name: target.homeName }),
+    away: Object.freeze({ providerTeamId: target.awayProviderTeamId, name: target.awayName }),
+    goals: noScore,
+    score: Object.freeze({
+      halftime: noScore,
+      fulltime: noScore,
+      extratime: noScore,
+      penalty: noScore,
+    }),
+    canonicalStatus: "SCHEDULED",
+    automaticUseBlocked: false,
+  });
+}
+
+function prevalidatedPrematchProvider(
+  provider: ApiFootballProvider,
+  fixture: CapturedFixture,
+  budget: RequestBudget,
+  circuitBreaker: RunCircuitBreaker,
+): PrematchCaptureProviderPort {
+  return Object.freeze({
+    async captureSelectedFixtureGoverned() {
+      const budgetState = budget.inspect();
+      const circuitState = circuitBreaker.inspect();
+      return Object.freeze({
+        ok: true as const,
+        data: fixture,
+        persistenceDisposition: "REPLAYED" as const,
+        governanceStatus: "SUCCESS" as const,
+        attemptsUsed: budgetState.startedAttempts,
+        remainingBudget: budgetState.remainingAttempts,
+        circuitState: circuitState.state,
+        ...(circuitState.reason === undefined ? {} : { circuitReason: circuitState.reason }),
+      });
+    },
+    capturePrematchPredictionGoverned(input: GovernedPredictionInput) {
+      return provider.capturePrematchPredictionGoverned(input);
+    },
+  });
+}
+
 function mapperWithEvents(eventSink?: ApiFootballRuntimeDependencies["eventSink"]): ApiFootballProviderMappers {
   return Object.freeze({
     fixture(dto, context) {
@@ -610,9 +775,21 @@ export async function runApiFootball(
   dependencies: ApiFootballRuntimeDependencies = {},
 ): Promise<ApiFootballRunnerResult> {
   if (targets.length === 0) return fail("TARGET_COUNT_INVALID");
+  if (
+    args.prevalidatedBinding &&
+    (args.command !== "prematch" || args.mode !== "NETWORK")
+  ) {
+    return fail("PREVALIDATED_BINDING_PREMATCH_NETWORK_ONLY");
+  }
+  if (args.prevalidatedBinding && targets.length !== 1) {
+    return fail("PREVALIDATED_TARGET_COUNT_INVALID");
+  }
+  if (args.prevalidatedBinding && args.maxAttempts !== 1) {
+    return fail("PREVALIDATED_BUDGET_MUST_BE_ONE");
+  }
   let credentialsRead = 0;
   let apiKey = "SYNTHETIC_DRY_RUN_KEY";
-  if (args.mode === "NETWORK") {
+  if (args.mode === "NETWORK" && !args.prevalidatedBinding) {
     credentialsRead += 1;
     apiKey = dependencies.apiKeyProvider?.() ?? "";
     if (apiKey.length === 0) return fail("API_FOOTBALL_KEY_REQUIRED");
@@ -624,6 +801,9 @@ export async function runApiFootball(
   const evidenceRoot = temporaryEvidenceRoot ?? args.evidenceRoot;
   let prisma: RuntimePrismaClient | undefined;
   let networkCalls = 0;
+  let fixtureDiscoveryCalls = 0;
+  let predictionCalls = 0;
+  let bindingValidated = false;
   let result: Omit<ApiFootballRunnerResult, "temporaryDatabaseRemoved" | "temporaryEvidenceRemoved"> | undefined;
   try {
     if (args.mode === "DRY_RUN") await mkdir(evidenceRoot, { mode: 0o700 });
@@ -632,10 +812,16 @@ export async function runApiFootball(
     const persistence = new PrismaApiFootballRepositories(
       prisma as unknown as ApiFootballPrismaClient,
     );
+    const clock = createApiFootballRuntimeClock(args, targets, dependencies);
+    let prevalidatedFixture: CapturedFixture | undefined;
     if (args.mode === "DRY_RUN") {
       await seedDryRunFixtures(prisma, persistence, args.command, targets);
     } else {
       await assertNetworkDatabase(prisma, args.command, targets);
+      if (args.prevalidatedBinding) {
+        prevalidatedFixture = await validatePrevalidatedBinding(prisma, targets[0], clock);
+        bindingValidated = true;
+      }
     }
     let operationalEvidence: OperationalRawEvidenceStore;
     try {
@@ -651,11 +837,23 @@ export async function runApiFootball(
         return published;
       },
     });
-    const clock = createApiFootballRuntimeClock(args, targets, dependencies);
+    if (args.mode === "NETWORK" && args.prevalidatedBinding) {
+      credentialsRead += 1;
+      apiKey = dependencies.apiKeyProvider?.() ?? "";
+      if (apiKey.length === 0) return fail("API_FOOTBALL_KEY_REQUIRED");
+    }
     const transport: ApiFootballFetch = args.mode === "DRY_RUN"
       ? fakeFetch(targets, args.dailyThreshold, dependencies.dryRunOutcomeStatus ?? "FT", dependencies.eventSink)
       : async (input, init) => {
+          const url = new URL(String(input));
+          const isFixtureDiscovery = url.pathname === "/fixtures" && url.searchParams.has("date");
+          const isPrediction = url.pathname === "/predictions" && url.searchParams.has("fixture");
+          if (args.prevalidatedBinding && !isPrediction) {
+            throw new ApiFootballRunnerError("PREVALIDATED_ENDPOINT_BLOCKED");
+          }
           networkCalls += 1;
+          if (isFixtureDiscovery) fixtureDiscoveryCalls += 1;
+          if (isPrediction) predictionCalls += 1;
           const fetchImpl = dependencies.networkFetch ?? globalThis.fetch;
           return fetchImpl(input, init);
         };
@@ -672,6 +870,9 @@ export async function runApiFootball(
     });
     const budget = new RequestBudget(args.maxAttempts);
     const circuitBreaker = new RunCircuitBreaker(Math.max(2, args.maxAttempts));
+    const prematchProvider = prevalidatedFixture === undefined
+      ? provider
+      : prevalidatedPrematchProvider(provider, prevalidatedFixture, budget, circuitBreaker);
     const executor = new GovernedRequestExecutor({
       budget,
       circuitBreaker,
@@ -715,7 +916,7 @@ export async function runApiFootball(
           budget,
           circuitBreaker,
           executor,
-          provider,
+          provider: prematchProvider,
           requestIdentityFactory: requestIdentity,
           parserVersion: API_FOOTBALL_MAPPER_POLICY_VERSION,
           policyVersion: "api-football-r0-runner/1.0",
@@ -768,6 +969,10 @@ export async function runApiFootball(
       networkCalls,
       credentialsRead,
       sharedBudgetAndBreaker,
+      bindingMode: args.prevalidatedBinding ? "PREVALIDATED" : "DISCOVERY",
+      bindingValidated,
+      fixtureDiscoveryCalls,
+      predictionCalls,
       ...(temporaryDatabasePath === undefined ? {} : { temporaryDatabasePath }),
       ...(temporaryEvidenceRoot === undefined ? {} : { temporaryEvidenceRoot }),
     });

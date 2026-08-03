@@ -30,6 +30,10 @@ async function main(): Promise<void> {
       ["DATABASE_URL_REDACTED", result.databaseUrlRedacted],
       ["EVIDENCE_ROOT", result.evidenceRootRedacted],
       ["NETWORK_USED", result.networkUsed],
+      ["BINDING_MODE", result.bindingMode],
+      ["BINDING_VALIDATED", result.bindingValidated],
+      ["FIXTURE_DISCOVERY_CALLS", result.fixtureDiscoveryCalls],
+      ["PREDICTION_CALLS", result.predictionCalls],
       ["EXIT", result.exitCode],
     ] as const;
     for (const [key, value] of fields) console.log(`${key} ${String(value)}`);
