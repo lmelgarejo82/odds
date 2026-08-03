@@ -1,0 +1,4 @@
+import { deriveDailyRun } from "@/infrastructure/market-v2/daily/derive-run";
+const values=new Map<string,string>();for(let i=2;i<process.argv.length;i+=2){const key=process.argv[i],value=process.argv[i+1];if(!key||!value){console.error("RUN_FAILED CONFIGURATION_FAILED");process.exit(1)}values.set(key,value)}
+const databaseUrl=values.get("--database-url"),sourceRun=values.get("--source-run");if(!databaseUrl?.startsWith("file:/")||!sourceRun){console.error("RUN_FAILED CONFIGURATION_FAILED");process.exit(1)}
+deriveDailyRun(databaseUrl,sourceRun).then((result)=>{for(const [key,value] of Object.entries(result))console.log(`${key.replace(/[A-Z]/g,(x)=>`_${x}`).toUpperCase()} ${String(value)}`);console.log("NETWORK_USED false");console.log("AUTOMATED_BETTING false");console.log("EXIT 0")}).catch(()=>{console.error("RUN_FAILED PERSISTENCE_FAILED");console.error("EXIT 1");process.exitCode=1});
