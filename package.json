@@ -40,7 +40,8 @@
     "run:prospective-shadow": "tsx scripts/run-prospective-shadow.ts",
     "validate:prospective-exports": "tsx scripts/validate-prospective-exports.ts",
     "audit:prospective-shadow": "tsx scripts/audit-prospective-shadow.ts",
-    "market-v2:capture-synthetic:self-check": "tsx scripts/market-v2-capture-synthetic-self-check.ts"
+    "market-v2:capture-synthetic:self-check": "tsx scripts/market-v2-capture-synthetic-self-check.ts",
+    "market-v2:api-football": "tsx scripts/market-v2-api-football.ts"
   },
   "prisma": {
     "seed": "tsx prisma/seed.ts"
