@@ -1,10 +1,11 @@
 export const DAILY_TIME_ZONE = "America/Asuncion" as const;
 export const DAILY_LOCALE = "es-PY" as const;
 export const DAILY_SCORING_POLICY = Object.freeze({
-  version: "daily-ranking/1.0.0",
+  version: "daily-ranking/1.1.0",
   weights: Object.freeze({ modelConfidence: 25, historicalCalibration: 25, marketValue: 25, contextualAgreement: 15, dataQuality: 10 }),
   thresholds: Object.freeze({ minimumTopMargin: 0.05, minimumEdge: 0.025, minimumQuality: 0.7, highDispersion: 0.12, sufficientHistoricalSample: 100 }),
-  penalties: Object.freeze({ tiedTop: 18, smallMargin: 10, missingHistory: 25, missingOdds: 25, highDispersion: 8, incompleteData: 8, contradictorySignals: 7, lowCoverageCompetition: 6, staleData: 5 }),
+  penalties: Object.freeze({ tiedTop: 8, smallMargin: 5, missingHistory: 4, missingOdds: 4, highDispersion: 8, incompleteData: 8, contradictorySignals: 7, lowCoverageCompetition: 6, staleData: 5 }),
+  provisionalCaps: Object.freeze({ missingBoth: 59.999, missingOne: 69.999 }),
   classes: Object.freeze({ strong: 80, interesting: 70, watch: 60 }),
 });
 
@@ -23,6 +24,17 @@ export type DailyPrediction = Readonly<{
 }>;
 
 export type MarketQuote = Readonly<{ market: DailyMarket; bookmaker: string; odds: number }>;
+
+export type HistoricalCalibration = Readonly<{ market: DailyMarket; partition: "DISCOVERY" | "VALIDATION"; sampleSize: number; hitRate: number; brierScore: number; wilsonLower: number; wilsonUpper: number; datasetVersion: string; semanticMarket: DailyMarket }>;
+
+export function assessHistoricalCalibration(records: readonly HistoricalCalibration[], market: DailyMarket): Readonly<{ available: boolean; status: string; sampleSize: number; record?: HistoricalCalibration }> {
+  const compatible=records.filter((record)=>record.market===market&&record.semanticMarket===market);
+  const discovery=compatible.find((record)=>record.partition==="DISCOVERY"); const validation=compatible.find((record)=>record.partition==="VALIDATION");
+  if(!discovery||!validation) return {available:false,status:"MISSING_PARTITION",sampleSize:validation?.sampleSize??0};
+  if(validation.sampleSize<DAILY_SCORING_POLICY.thresholds.sufficientHistoricalSample) return {available:false,status:"INSUFFICIENT_SAMPLE",sampleSize:validation.sampleSize};
+  if(![validation.hitRate,validation.brierScore,validation.wilsonLower,validation.wilsonUpper].every(Number.isFinite)) return {available:false,status:"RESULTS_INCOMPLETE",sampleSize:validation.sampleSize};
+  return {available:true,status:"VALIDATED",sampleSize:validation.sampleSize,record:validation};
+}
 
 export function sportsDateD1(now: Date): string {
   const parts = new Intl.DateTimeFormat("en-CA", { timeZone: DAILY_TIME_ZONE, year: "numeric", month: "2-digit", day: "2-digit" }).formatToParts(now);
@@ -60,7 +72,7 @@ export function noVig(odds: readonly number[]): readonly number[] {
 }
 
 export function evaluateMarkets(prediction: DailyPrediction, quotes: readonly MarketQuote[]): readonly Readonly<{
-  market: DailyMarket; modelProbability: number | null; fairOdds: number | null; bestMarketOdds: number | null; noVigProbability: number | null; marketMargin: number | null; edge: number | null; expectedValue: number | null; dispersion: number | null; status: string; warnings: readonly string[];
+  market: DailyMarket; modelProbability: number | null; fairOdds: number | null; bestMarketOdds: number | null; consensusOdds: number | null; bookmakerCount: number; noVigProbability: number | null; marketMargin: number | null; edge: number | null; expectedValue: number | null; dispersion: number | null; status: string; warnings: readonly string[];
 }>[] {
   const probabilities: Record<DailyMarket, number | undefined> = {
     HOME: prediction.home, DRAW: prediction.draw, AWAY: prediction.away,
@@ -73,12 +85,12 @@ export function evaluateMarkets(prediction: DailyPrediction, quotes: readonly Ma
   for (const family of [["HOME","DRAW","AWAY"],["1X","X2","12"],["OVER_25","UNDER_25"]] as const) { const odds=family.map((market)=>bestByMarket.get(market)); if(odds.every((value): value is number=>value!==undefined)){ const implied=odds.map((value)=>1/value); const margin=implied.reduce((a,b)=>a+b,0); family.forEach((market,index)=>{noVigByMarket.set(market,implied[index]/margin);marginByMarket.set(market,margin-1);}); } }
   return (Object.keys(probabilities) as DailyMarket[]).map((market) => {
     const probability = probabilities[market];
-    if (probability === undefined || probability <= 0 || probability >= 1) return { market, modelProbability: null, fairOdds: null, bestMarketOdds: null, noVigProbability: null, marketMargin: null, edge: null, expectedValue: null, dispersion: null, status: "MODEL_UNAVAILABLE", warnings: ["Modelo explícito no disponible"] };
+    if (probability === undefined || probability <= 0 || probability >= 1) return { market, modelProbability: null, fairOdds: null, bestMarketOdds: null, consensusOdds: null, bookmakerCount: 0, noVigProbability: null, marketMargin: null, edge: null, expectedValue: null, dispersion: null, status: "MODEL_UNAVAILABLE", warnings: ["Modelo explícito no disponible"] };
     const available = quotes.filter((quote) => quote.market === market && quote.odds > 1);
     const best = bestByMarket.get(market) ?? null;
     const implied = noVigByMarket.get(market) ?? null;
     const dispersion = available.length < 2 ? null : (Math.max(...available.map((quote) => quote.odds)) - Math.min(...available.map((quote) => quote.odds))) / Math.min(...available.map((quote) => quote.odds));
-    return { market, modelProbability: probability, fairOdds: 1 / probability, bestMarketOdds: best, noVigProbability: implied, marketMargin: marginByMarket.get(market) ?? null, edge: implied === null ? null : probability - implied, expectedValue: best === null ? null : probability * best - 1, dispersion, status: best === null ? "MODEL_ONLY" : implied === null ? "PRICE_INCOMPLETE" : "PRICED", warnings: best === null ? ["Cuota no disponible"] : implied === null ? ["Mercado incompleto; no-vig no calculable"] : [] };
+    return { market, modelProbability: probability, fairOdds: 1 / probability, bestMarketOdds: best, consensusOdds: available.length?available.reduce((sum,quote)=>sum+quote.odds,0)/available.length:null, bookmakerCount:new Set(available.map((quote)=>quote.bookmaker)).size, noVigProbability: implied, marketMargin: marginByMarket.get(market) ?? null, edge: implied === null ? null : probability - implied, expectedValue: best === null ? null : probability * best - 1, dispersion, status: best === null ? "MODEL_ONLY" : implied === null ? "PRICE_INCOMPLETE" : "PRICED", warnings: best === null ? ["Cuota no disponible"] : implied === null ? ["Mercado incompleto; no-vig no calculable"] : [] };
   });
 }
 
@@ -97,7 +109,10 @@ export function scoreEvaluation(input: Readonly<{ market: DailyMarket; probabili
   if (input.edge === null || input.expectedValue === null) { penalties.push("MISSING_ODDS"); deduction += policy.penalties.missingOdds; }
   if (input.dispersion !== null && input.dispersion > policy.thresholds.highDispersion) { penalties.push("HIGH_DISPERSION"); deduction += policy.penalties.highDispersion; }
   if (input.contradictory) { penalties.push("CONTRADICTORY_SIGNALS"); deduction += policy.penalties.contradictorySignals; }
-  const total = Math.max(0, Math.min(100, model + historical + market + contextual + quality - deduction));
+  const rawTotal = Math.max(0, Math.min(100, model + historical + market + contextual + quality - deduction));
+  const historyMissing=input.historicalSample<policy.thresholds.sufficientHistoricalSample; const oddsMissing=input.edge===null||input.expectedValue===null;
+  const cap=historyMissing&&oddsMissing?policy.provisionalCaps.missingBoth:historyMissing||oddsMissing?policy.provisionalCaps.missingOne:100;
+  const total=Math.min(rawTotal,cap);
   const classification: DailyClass = total >= policy.classes.strong ? "STRONG" : total >= policy.classes.interesting ? "INTERESTING" : total >= policy.classes.watch ? "WATCH" : "PASS";
   const full = input.historicalSample >= policy.thresholds.sufficientHistoricalSample && input.edge !== null && input.edge >= policy.thresholds.minimumEdge && input.expectedValue !== null && input.expectedValue > 0 && input.dataQuality >= policy.thresholds.minimumQuality && !input.contradictory;
   return { total, classification, components: [model, historical, market, contextual, quality], penalties, status: full ? "FULL" : "MODEL_ONLY" };

@@ -1385,6 +1385,7 @@ model ProviderFixtureIdentity {
 
 model DailyAnalysisRun {
   id                             String                      @id
+  derivedFromRunId               String?
   sportsDate                     String
   mode                           String
   status                         String
@@ -1394,6 +1395,15 @@ model DailyAnalysisRun {
   historicalCalibrationAvailable Boolean
   historicalDatasetHash          String?
   oddsAvailable                  Boolean
+  oddsResponseReceived           Boolean                     @default(false)
+  oddsEventsReceived             Int                         @default(0)
+  oddsFixturesMatched            Int                         @default(0)
+  oddsMarketsMatched             Int                         @default(0)
+  usableOddsAvailable            Boolean                     @default(false)
+  marketEvaluationsCreated       Int                         @default(0)
+  oddsDiagnosticsJson            String                      @default("[]")
+  historicalDatasetFound         Boolean                     @default(false)
+  historicalMarketsCalibrated    Int                         @default(0)
   marketValueCalculated          Boolean
   fixturesDiscovered             Int
   fixturesEligible               Int
@@ -1449,11 +1459,16 @@ model DailyMarketEvaluation {
   edge                     Decimal?
   expectedValue            Decimal?
   bookmakerDispersion      Decimal?
+  bookmakerCount           Int                   @default(0)
+  consensusOdds            Decimal?
   historicalSample         Int
   historicalHitRate        Decimal?
   historicalBrierScore     Decimal?
   wilsonLower95            Decimal?
   wilsonUpper95            Decimal?
+  datasetVersion           String?
+  calibrationStatus        String                @default("MISSING_HISTORY")
+  matchingJson             String                @default("{}")
   reasonsJson              String
   warningsJson             String
   createdAtUtc             DateTime              @default(now())
