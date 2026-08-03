@@ -2,10 +2,11 @@ export type RawEvidenceEndpointKey =
   | "fixtures-by-date"
   | "fixtures-by-competition-window"
   | "prediction-by-fixture"
-  | "fixture-result-by-id";
+  | "fixture-result-by-id"
+  | "odds-upcoming";
 
 export type RawEvidenceCandidate = Readonly<{
-  providerKey: "api-football";
+  providerKey: "api-football" | "the-odds-api";
   endpointKey: RawEvidenceEndpointKey;
   capturedAtUtc: string;
   mediaType: string;
@@ -14,7 +15,7 @@ export type RawEvidenceCandidate = Readonly<{
 }>;
 
 export type RawEvidenceDescriptor = Readonly<{
-  providerKey: "api-football";
+  providerKey: "api-football" | "the-odds-api";
   endpointKey: RawEvidenceEndpointKey;
   capturedAtUtc: string;
   mediaType: string;

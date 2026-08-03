@@ -1,0 +1,10 @@
+[Unit]
+Description=Run Odds Market V2 D+1 ranking daily at 15:30 America/Asuncion
+
+[Timer]
+OnCalendar=*-*-* 15:30:00 America/Asuncion
+Persistent=true
+Unit=odds-market-v2-daily.service
+
+[Install]
+WantedBy=timers.target
