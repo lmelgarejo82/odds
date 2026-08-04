@@ -23,6 +23,7 @@ export const AUTOMATIC_DAILY_RANKING_POLICY = Object.freeze({
 
 export type AutomaticCategory = "VALUE_DETECTED" | "MODEL_REVIEW" | "WATCH" | "PASS";
 export type AutomaticMatchMethod = "EXACT_NORMALIZED" | "UNIQUE_HIGH_CONFIDENCE" | "REJECTED";
+export type AutomaticRejectionReason = "NO_COMPETITION_OVERLAP" | "NO_TIME_OVERLAP" | "TEAM_NAME_MISMATCH" | "ORIENTATION_MISMATCH" | "MULTIPLE_CANDIDATES" | "PROVIDER_EVENT_SET_NOT_RELEVANT";
 
 export type AutomaticFixture = Readonly<{
   fixtureId: string;
@@ -54,6 +55,10 @@ export type AutomaticMatchResult = Readonly<{
     providerAway: string | null;
   }>;
   kickoffDeltaSeconds: number | null;
+  homeSimilarity: number | null;
+  awaySimilarity: number | null;
+  competitionCompatible: boolean;
+  rejectionReason: AutomaticRejectionReason | null;
   competitionCountryEvidence: readonly string[];
   warnings: readonly string[];
 }>;
@@ -131,9 +136,10 @@ export function matchAutomaticFixture(
     const reverseAway = tokenSimilarity(fixture.awayName, event.homeName);
     const evidence = contextEvidence(fixture, event);
     const exact = normalizeAutomaticTeamName(fixture.homeName) === normalizeAutomaticTeamName(event.homeName) && normalizeAutomaticTeamName(fixture.awayName) === normalizeAutomaticTeamName(event.awayName);
-    const high = home >= AUTOMATIC_ODDS_MATCHING_POLICY.minimumTeamSimilarity && away >= AUTOMATIC_ODDS_MATCHING_POLICY.minimumTeamSimilarity && evidence.length > 0;
+    const competitionCompatible = evidence.includes("COUNTRY_COHERENT") || evidence.includes("COMPETITION_COHERENT");
+    const high = home >= AUTOMATIC_ODDS_MATCHING_POLICY.minimumTeamSimilarity && away >= AUTOMATIC_ODDS_MATCHING_POLICY.minimumTeamSimilarity && competitionCompatible;
     const reversed = reverseHome >= AUTOMATIC_ODDS_MATCHING_POLICY.minimumTeamSimilarity && reverseAway >= AUTOMATIC_ODDS_MATCHING_POLICY.minimumTeamSimilarity;
-    return { event, home, away, evidence, exact, high, reversed };
+    return { event, home, away, evidence, exact, high, reversed, competitionCompatible };
   });
   const viable = candidates.filter((candidate) => !candidate.reversed && (candidate.exact || candidate.high));
   if (viable.length === 1) {
@@ -151,12 +157,31 @@ export function matchAutomaticFixture(
         providerAway: selected.event.awayName,
       },
       kickoffDeltaSeconds: delta,
+      homeSimilarity: selected.home,
+      awaySimilarity: selected.away,
+      competitionCompatible: selected.competitionCompatible,
+      rejectionReason: null,
       competitionCountryEvidence: selected.evidence,
       warnings: [],
     });
   }
-  const warning = within.length === 0 ? "KICKOFF_OUTSIDE_TOLERANCE" : candidates.some((x) => x.reversed) ? "ORIENTATION_REVERSED" : viable.length > 1 ? "AMBIGUOUS_EVENT" : candidates.some((x) => x.home >= AUTOMATIC_ODDS_MATCHING_POLICY.minimumTeamSimilarity || x.away >= AUTOMATIC_ODDS_MATCHING_POLICY.minimumTeamSimilarity) ? "ONLY_ONE_TEAM_MATCHED" : "TEAM_SIMILARITY_INSUFFICIENT";
-  return Object.freeze({ ...base, method: "REJECTED", confidence: 0, matchedEventId: null, kickoffDeltaSeconds: null, competitionCountryEvidence: [], warnings: [warning] });
+  const best = [...candidates].sort((left, right) => Math.min(right.home, right.away) - Math.min(left.home, left.away) || left.event.id.localeCompare(right.event.id))[0];
+  const rejectionReason: AutomaticRejectionReason = within.length === 0 ? "NO_TIME_OVERLAP" : candidates.some((x) => x.reversed) ? "ORIENTATION_MISMATCH" : viable.length > 1 ? "MULTIPLE_CANDIDATES" : candidates.some((x) => x.home >= AUTOMATIC_ODDS_MATCHING_POLICY.minimumTeamSimilarity && x.away >= AUTOMATIC_ODDS_MATCHING_POLICY.minimumTeamSimilarity && !x.competitionCompatible) ? "NO_COMPETITION_OVERLAP" : "TEAM_NAME_MISMATCH";
+  const warning = rejectionReason === "NO_TIME_OVERLAP" ? "KICKOFF_OUTSIDE_TOLERANCE" : rejectionReason === "ORIENTATION_MISMATCH" ? "ORIENTATION_REVERSED" : rejectionReason === "MULTIPLE_CANDIDATES" ? "AMBIGUOUS_EVENT" : rejectionReason === "NO_COMPETITION_OVERLAP" ? "COMPETITION_CONTEXT_INSUFFICIENT" : candidates.some((x) => x.home >= AUTOMATIC_ODDS_MATCHING_POLICY.minimumTeamSimilarity || x.away >= AUTOMATIC_ODDS_MATCHING_POLICY.minimumTeamSimilarity) ? "ONLY_ONE_TEAM_MATCHED" : "TEAM_SIMILARITY_INSUFFICIENT";
+  return Object.freeze({
+    ...base,
+    method: "REJECTED",
+    confidence: 0,
+    matchedEventId: null,
+    namesCompared: { canonicalHome: fixture.homeName, providerHome: best?.event.homeName ?? null, canonicalAway: fixture.awayName, providerAway: best?.event.awayName ?? null },
+    kickoffDeltaSeconds: best ? Math.abs(Date.parse(best.event.kickoffAtUtc) - Date.parse(fixture.kickoffAtUtc)) / 1000 : null,
+    homeSimilarity: best?.home ?? null,
+    awaySimilarity: best?.away ?? null,
+    competitionCompatible: best?.competitionCompatible ?? false,
+    rejectionReason,
+    competitionCountryEvidence: best?.evidence ?? [],
+    warnings: [warning],
+  });
 }
 
 export type AutomaticScoreInput = Readonly<{

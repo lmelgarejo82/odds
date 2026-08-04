@@ -30,6 +30,7 @@ describe("automatic review V1", () => {
     const values = evaluateMarkets({ home: .5, draw: .3, away: .2, over25: .6, under25: .4, contextualAgreement: .8, contradictory: false, rawSignals: {} }, mapped.quotes);
     const home = values.find((x) => x.market === "HOME")!;
     expect(home.fairOdds).toBe(2); expect(home.noVigProbability).toBeCloseTo((1 / 2.2) / (1 / 2.2 + 1 / 3.4 + 1 / 4.5)); expect(home.edge).toBeCloseTo(.5 - home.noVigProbability!); expect(home.expectedValue).toBeCloseTo(.1);
+    expect(values.find((x) => x.market === "OVER_15")).toMatchObject({ modelProbability: null, fairOdds: null, bestMarketOdds: 1.5, edge: null, expectedValue: null, status: "PRICE_ONLY" });
     expect(values.find((x) => x.market === "1X")).toMatchObject({ bestMarketOdds: null, edge: null, expectedValue: null });
   });
   it("clasifica VALUE, MODEL_REVIEW, WATCH y PASS sin histórico", () => {
