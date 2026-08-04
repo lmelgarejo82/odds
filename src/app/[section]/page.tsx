@@ -6,6 +6,8 @@ import { MarketPriorityStatus } from "@/components/market-priority-status";
 import { ProspectiveShadowStatus } from "@/components/prospective-shadow-status";
 import { StatareaSemanticsStatus } from "@/components/statarea-semantics-status";
 import { DailyRankingStatus } from "@/components/daily-ranking-status";
+import { OperationalHistoryStatus } from "@/components/operational-history-status";
+import { OperationalPerformanceStatus } from "@/components/operational-performance-status";
 
 const sections: Record<string, string> = {
   fuentes: "Fuentes",
@@ -16,6 +18,8 @@ const sections: Record<string, string> = {
   "sistema-prioridad": "Sistema de prioridad",
   "ejecucion-prospectiva": "Ejecución prospectiva",
   "mejores-partidos": "Mejores partidos",
+  historial: "Historial operativo",
+  rendimiento: "Rendimiento operativo",
   seguimiento: "Seguimiento",
   importaciones: "Importaciones",
   reportes: "Reportes",
@@ -28,6 +32,8 @@ const databaseBackedSections = new Set([
   "sistema-prioridad",
   "ejecucion-prospectiva",
   "mejores-partidos",
+  "historial",
+  "rendimiento",
 ]);
 
 export function generateStaticParams() {
@@ -36,8 +42,10 @@ export function generateStaticParams() {
 
 export default async function SectionPage({
   params,
+  searchParams,
 }: {
   params: Promise<{ section: string }>;
+  searchParams?: Promise<Record<string, string | string[] | undefined>>;
 }) {
   const { section } = await params;
   const title = sections[section];
@@ -53,6 +61,11 @@ export default async function SectionPage({
   if (section === "sistema-prioridad") return <MarketPriorityStatus />;
   if (section === "ejecucion-prospectiva") return <ProspectiveShadowStatus />;
   if (section === "mejores-partidos") return <DailyRankingStatus />;
+  if (section === "historial") {
+    const query: Record<string, string | string[] | undefined> = await (searchParams ?? Promise.resolve({}));
+    return <OperationalHistoryStatus selectedDate={typeof query.date === "string" ? query.date : undefined} selectedRun={typeof query.run === "string" ? query.run : undefined} />;
+  }
+  if (section === "rendimiento") return <OperationalPerformanceStatus />;
 
   return <EmptyState title={title} />;
 }

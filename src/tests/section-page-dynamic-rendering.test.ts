@@ -41,6 +41,9 @@ vi.mock("@/components/prospective-shadow-status", () => ({
     return "prospective-shadow";
   },
 }));
+vi.mock("@/components/daily-ranking-status", () => ({ DailyRankingStatus: () => "daily-ranking" }));
+vi.mock("@/components/operational-history-status", () => ({ OperationalHistoryStatus: () => "operational-history" }));
+vi.mock("@/components/operational-performance-status", () => ({ OperationalPerformanceStatus: () => "operational-performance" }));
 
 import SectionPage, { generateStaticParams } from "@/app/[section]/page";
 
@@ -98,6 +101,8 @@ describe("renderizado request-time de secciones Prisma", () => {
       "sistema-prioridad",
       "ejecucion-prospectiva",
       "mejores-partidos",
+      "historial",
+      "rendimiento",
       "seguimiento",
       "importaciones",
       "reportes",

@@ -9,6 +9,7 @@ export function mapPriceableOdds(event:OddsApiEvent):MappedOddsMarkets{
     if(market.key==="double_chance"){doubleChanceOffered=true;unsupported.add("double_chance");continue}
     for(const outcome of market.outcomes){let code:DailyMarket|null=null;
       if(market.key==="h2h")code=outcome.name===event.home_team?"HOME":outcome.name===event.away_team?"AWAY":/^draw$/iu.test(outcome.name)?"DRAW":null;
+      if(market.key==="totals"&&outcome.point===1.5)code=/^over$/iu.test(outcome.name)?"OVER_15":/^under$/iu.test(outcome.name)?"UNDER_15":null;
       if(market.key==="totals"&&outcome.point===2.5)code=/^over$/iu.test(outcome.name)?"OVER_25":/^under$/iu.test(outcome.name)?"UNDER_25":null;
       if(code&&Number.isFinite(outcome.price)&&outcome.price>1){quotes.push({market:code,bookmaker:bookmaker.title,odds:outcome.price});matched.add(code)}
     }

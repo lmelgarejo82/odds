@@ -9,7 +9,7 @@ const fixture = { fixtureId: "f1", homeName: "Club Atlético Paraná", awayName:
 const event = (overrides: Partial<AutomaticOddsEvent> = {}): AutomaticOddsEvent => ({ id: "e1", homeName: "Atletico Parana", awayName: "Deportivo Temuco W", kickoffAtUtc: "2026-08-05T18:10:00.000Z", sportKey: "soccer_chile_primera_b", sportTitle: "Primera B Chile", ...overrides });
 
 describe("automatic review V1", () => {
-  it("hace EXACT normalizado con acentos, FC/Club y Women/W", () => expect(matchAutomaticFixture(fixture, [event()])).toMatchObject({ method: "EXACT", confidence: 1, matchedEventId: "e1" }));
+  it("hace EXACT normalizado con acentos, FC/Club y Women/W", () => expect(matchAutomaticFixture(fixture, [event()])).toMatchObject({ method: "EXACT_NORMALIZED", confidence: 1, matchedEventId: "e1" }));
   it("hace UNIQUE_HIGH_CONFIDENCE con identidad conservadora y contexto", () => expect(matchAutomaticFixture({ ...fixture, homeName: "Central Cordoba de Santiago" }, [event({ homeName: "Central Cordoba SdE" })])).toMatchObject({ method: "UNIQUE_HIGH_CONFIDENCE", matchedEventId: "e1" }));
   it("rechaza dos candidatos, un solo equipo, orientación inversa y kickoff fuera", () => {
     expect(matchAutomaticFixture(fixture, [event(), event({ id: "e2" })]).warnings).toContain("AMBIGUOUS_EVENT");
@@ -21,11 +21,11 @@ describe("automatic review V1", () => {
     expect(normalizeAutomaticTeamName("Santos Laguna Women FC")).toBe("santos laguna w");
     expect(normalizeAutomaticTeamName("Deportes Copiapó")).toBe("deportivo copiapo");
   });
-  it("mapea solo h2h y totals 2.5; ignora lay, puntos distintos y doble oportunidad", () => {
-    const odds: OddsApiEvent = { id: "e", commence_time: fixture.kickoffAtUtc, home_team: "Home", away_team: "Away", bookmakers: [{ key: "b", title: "Book", markets: [{ key: "h2h", outcomes: [{ name: "Home", price: 2.2 }, { name: "Draw", price: 3.4 }, { name: "Away", price: 4.5 }] }, { key: "totals", outcomes: [{ name: "Over", point: 2.5, price: 1.9 }, { name: "Under", point: 2.5, price: 2.1 }, { name: "Over", point: 3.5, price: 1.4 }] }, { key: "h2h_lay", outcomes: [{ name: "Home", price: 2.3 }] }, { key: "double_chance", outcomes: [{ name: "Home or Draw", price: 1.2 }] }] }] };
+  it("mapea solo h2h y totals 1.5/2.5; ignora lay, otros puntos y doble oportunidad", () => {
+    const odds: OddsApiEvent = { id: "e", commence_time: fixture.kickoffAtUtc, home_team: "Home", away_team: "Away", bookmakers: [{ key: "b", title: "Book", markets: [{ key: "h2h", outcomes: [{ name: "Home", price: 2.2 }, { name: "Draw", price: 3.4 }, { name: "Away", price: 4.5 }] }, { key: "totals", outcomes: [{ name: "Over", point: 1.5, price: 1.5 }, { name: "Under", point: 1.5, price: 2.7 }, { name: "Over", point: 2.5, price: 1.9 }, { name: "Under", point: 2.5, price: 2.1 }, { name: "Over", point: 3.5, price: 1.4 }] }, { key: "h2h_lay", outcomes: [{ name: "Home", price: 2.3 }] }, { key: "double_chance", outcomes: [{ name: "Home or Draw", price: 1.2 }] }] }] };
     const mapped = mapPriceableOdds(odds);
-    expect(mapped.matchedMarkets).toEqual(["HOME", "DRAW", "AWAY", "OVER_25", "UNDER_25"]);
-    expect(mapped.quotes).toHaveLength(5);
+    expect(mapped.matchedMarkets).toEqual(["HOME", "DRAW", "AWAY", "OVER_15", "UNDER_15", "OVER_25", "UNDER_25"]);
+    expect(mapped.quotes).toHaveLength(7);
     expect(mapped.unsupportedMarketKeys).toEqual(["double_chance", "h2h_lay"]);
     const values = evaluateMarkets({ home: .5, draw: .3, away: .2, over25: .6, under25: .4, contextualAgreement: .8, contradictory: false, rawSignals: {} }, mapped.quotes);
     const home = values.find((x) => x.market === "HOME")!;

@@ -9,7 +9,7 @@ export const DAILY_SCORING_POLICY = Object.freeze({
   classes: Object.freeze({ strong: 80, interesting: 70, watch: 60 }),
 });
 
-export type DailyMarket = "HOME" | "DRAW" | "AWAY" | "1X" | "X2" | "12" | "OVER_25" | "UNDER_25";
+export type DailyMarket = "HOME" | "DRAW" | "AWAY" | "1X" | "X2" | "12" | "OVER_15" | "UNDER_15" | "OVER_25" | "UNDER_25";
 export type DailyClass = "STRONG" | "INTERESTING" | "WATCH" | "PASS";
 
 export type DiscoveredFixture = Readonly<{
@@ -19,7 +19,7 @@ export type DiscoveredFixture = Readonly<{
 }>;
 
 export type DailyPrediction = Readonly<{
-  home: number; draw: number; away: number; over25?: number; under25?: number;
+  home: number; draw: number; away: number; over15?: number; under15?: number; over25?: number; under25?: number;
   winner?: string | null; advice?: string | null; contextualAgreement: number; contradictory: boolean; rawSignals: Readonly<Record<string, unknown>>;
 }>;
 
@@ -44,9 +44,24 @@ export function sportsDateD1(now: Date): string {
   return localMidnight.toISOString().slice(0, 10);
 }
 
+export function sportsDateInAsuncion(value: Date | string): string | null {
+  const date = value instanceof Date ? value : new Date(value);
+  if (!Number.isFinite(date.valueOf())) return null;
+  const parts = new Intl.DateTimeFormat("en-CA", {
+    timeZone: DAILY_TIME_ZONE,
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+  }).formatToParts(date);
+  const values = Object.fromEntries(parts.map((part) => [part.type, part.value]));
+  return `${values.year}-${values.month}-${values.day}`;
+}
+
 export function filterFixture(fixture: DiscoveredFixture, nowUtc: Date): Readonly<{ eligible: boolean; reasonCode: string; quality: number }> {
   if (fixture.status !== "NS") return { eligible: false, reasonCode: "STATUS_NOT_NS", quality: 0 };
-  if (!Number.isFinite(Date.parse(fixture.kickoffAtUtc)) || Date.parse(fixture.kickoffAtUtc) <= nowUtc.valueOf()) return { eligible: false, reasonCode: "KICKOFF_NOT_FUTURE", quality: 0 };
+  if (!Number.isFinite(Date.parse(fixture.kickoffAtUtc))) return { eligible: false, reasonCode: "KICKOFF_INVALID", quality: 0 };
+  if (sportsDateInAsuncion(fixture.kickoffAtUtc) !== fixture.sportsDate) return { eligible: false, reasonCode: "LOCAL_SPORTS_DATE_MISMATCH", quality: 0 };
+  if (Date.parse(fixture.kickoffAtUtc) <= nowUtc.valueOf()) return { eligible: false, reasonCode: "KICKOFF_NOT_FUTURE", quality: 0 };
   if (!/^\d+$/u.test(fixture.providerFixtureId) || !/^\d+$/u.test(fixture.providerCompetitionId) || !/^\d+$/u.test(fixture.providerHomeTeamId) || !/^\d+$/u.test(fixture.providerAwayTeamId)) return { eligible: false, reasonCode: "IDENTITY_INCOMPLETE", quality: 0 };
   if (fixture.providerHomeTeamId === fixture.providerAwayTeamId || normalizeName(fixture.homeName) === normalizeName(fixture.awayName)) return { eligible: false, reasonCode: "SAME_TEAM", quality: 0 };
   if (!fixture.competitionName.trim() || !Number.isSafeInteger(fixture.season)) return { eligible: false, reasonCode: "COMPETITION_INCOMPLETE", quality: 0 };
@@ -77,12 +92,13 @@ export function evaluateMarkets(prediction: DailyPrediction, quotes: readonly Ma
   const probabilities: Record<DailyMarket, number | undefined> = {
     HOME: prediction.home, DRAW: prediction.draw, AWAY: prediction.away,
     "1X": prediction.home + prediction.draw, X2: prediction.draw + prediction.away, "12": prediction.home + prediction.away,
+    OVER_15: prediction.over15, UNDER_15: prediction.under15,
     OVER_25: prediction.over25, UNDER_25: prediction.under25,
   };
   const bestByMarket = new Map<DailyMarket, number>();
   for (const market of Object.keys(probabilities) as DailyMarket[]) { const available=quotes.filter((quote)=>quote.market===market&&quote.odds>1); if(available.length) bestByMarket.set(market,Math.max(...available.map((quote)=>quote.odds))); }
   const noVigByMarket = new Map<DailyMarket, number>(); const marginByMarket = new Map<DailyMarket, number>();
-  for (const family of [["HOME","DRAW","AWAY"],["1X","X2","12"],["OVER_25","UNDER_25"]] as const) { const odds=family.map((market)=>bestByMarket.get(market)); if(odds.every((value): value is number=>value!==undefined)){ const implied=odds.map((value)=>1/value); const margin=implied.reduce((a,b)=>a+b,0); family.forEach((market,index)=>{noVigByMarket.set(market,implied[index]/margin);marginByMarket.set(market,margin-1);}); } }
+  for (const family of [["HOME","DRAW","AWAY"],["1X","X2","12"],["OVER_15","UNDER_15"],["OVER_25","UNDER_25"]] as const) { const odds=family.map((market)=>bestByMarket.get(market)); if(odds.every((value): value is number=>value!==undefined)){ const implied=odds.map((value)=>1/value); const margin=implied.reduce((a,b)=>a+b,0); family.forEach((market,index)=>{noVigByMarket.set(market,implied[index]/margin);marginByMarket.set(market,margin-1);}); } }
   return (Object.keys(probabilities) as DailyMarket[]).map((market) => {
     const probability = probabilities[market];
     if (probability === undefined || probability <= 0 || probability >= 1) return { market, modelProbability: null, fairOdds: null, bestMarketOdds: null, consensusOdds: null, bookmakerCount: 0, noVigProbability: null, marketMargin: null, edge: null, expectedValue: null, dispersion: null, status: "MODEL_UNAVAILABLE", warnings: ["Modelo explícito no disponible"] };
