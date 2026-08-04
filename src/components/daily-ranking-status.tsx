@@ -2,6 +2,7 @@ import Link from "next/link";
 import { database } from "@/infrastructure/database";
 import { DAILY_LOCALE, DAILY_TIME_ZONE, sportsDateInAsuncion, type DailyMarket } from "@/domain/market-v2/daily-analysis";
 import { calculateProspectiveCalibration, type AutomaticCategory, type CalibrationObservation } from "@/domain/market-v2/automatic-review-v1";
+import { DailyMarketAnalysis } from "@/components/daily-market-analysis";
 
 const dateTime = new Intl.DateTimeFormat(DAILY_LOCALE, { timeZone: DAILY_TIME_ZONE, dateStyle: "medium", timeStyle: "short" });
 const percent = (value: unknown) => value === null || value === undefined ? "No disponible" : `${(Number(value) * 100).toLocaleString(DAILY_LOCALE, { maximumFractionDigits: 1 })} %`;
@@ -9,6 +10,8 @@ const decimal = (value: unknown) => value === null || value === undefined ? "No 
 const list = (value: string): string[] => { try { const parsed: unknown = JSON.parse(value); return Array.isArray(parsed) ? parsed.map(String) : []; } catch { return []; } };
 const labels: Record<AutomaticCategory, string> = { VALUE_DETECTED: "Valor detectado", MODEL_REVIEW: "Revisión por modelo", WATCH: "Observar", PASS: "Descartar" };
 const validCategory = (value: string): AutomaticCategory => value === "VALUE_DETECTED" || value === "MODEL_REVIEW" || value === "WATCH" ? value : "PASS";
+const readableAudit: Readonly<Record<string, string>> = Object.freeze({ SIN_COTIZACION_DIRECTA: "Sin cuota directa", CALIBRATION_BOOTSTRAP: "Calibración en construcción", PENDING_REVIEW: "Pendiente de revisión", MODEL_REVIEW: "Revisión por modelo", VALUE_DETECTED: "Valor detectado", WATCH: "Observar", PASS: "Descartado" });
+const readable = (value: string) => readableAudit[value] ?? value.replaceAll("_", " ").toLocaleLowerCase("es-PY");
 
 function marketHit(market: string, outcome: Readonly<{ result1X2: string; regulationHomeScore: number; regulationAwayScore: number }>): boolean | null {
   if (market === "HOME" || market === "DRAW" || market === "AWAY") return outcome.result1X2 === market;
@@ -58,11 +61,12 @@ export async function DailyRankingStatus() {
     const directQuote = pricedEvaluation?.bestMarketOdds !== null && pricedEvaluation?.bestMarketOdds !== undefined;
     return <article className="daily-card" key={recommendation.id}>
       {showRank && <div className="daily-rank">#{index + 1}</div>}
-      <div className="daily-match"><span>{candidate.fixture.country} · {candidate.fixture.competitionName}</span><h2>{candidate.fixture.homeTeam.displayName} <i>vs.</i> {candidate.fixture.awayTeam.displayName}</h2><small>{dateTime.format(candidate.fixture.kickoffAtUtc)} · hora de Asunción</small></div>
-      <div className="daily-market"><span>Categoría V1</span><strong>{labels[category]}</strong><span>Mercado sugerido por modelo</span><strong>{recommendation.market}</strong><span>Mercado cotizado</span><strong>{pricedEvaluation?.market ?? "Sin cotización directa"}</strong><small>{directQuote ? "Cotización directa vinculada" : "Sin cotización directa"}</small><small>PENDING_REVIEW</small></div>
+      <div className="daily-match"><span className="daily-country">{candidate.fixture.country}</span><span className="daily-competition">{candidate.fixture.competitionName}</span><h2><span className="team-name">{candidate.fixture.homeTeam.displayName}</span><i>vs.</i><span className="team-name">{candidate.fixture.awayTeam.displayName}</span></h2><small className="daily-kickoff">{dateTime.format(candidate.fixture.kickoffAtUtc)} · hora de Asunción</small></div>
+      <div className="daily-market"><span>Categoría V1</span><strong>{labels[category]}</strong><span>Mercado sugerido por modelo</span><strong>{recommendation.market}</strong><span>Mercado cotizado</span><strong>{pricedEvaluation?.market ?? "Sin cuota directa"}</strong><small>{directQuote ? "Cotización directa vinculada" : "Sin cuota directa"}</small><small>Pendiente de revisión</small><small className="audit-code">Auditoría: {recommendation.reviewStatus}</small></div>
       <dl className="daily-numbers"><div><dt>Modelo</dt><dd>{percent(evaluation.modelProbability)}</dd></div><div><dt>Cuota justa modelo</dt><dd>{decimal(evaluation.fairOdds)}</dd></div><div><dt>Mejor cuota real</dt><dd>{decimal(pricedEvaluation?.bestMarketOdds)}</dd></div><div><dt>Mercado sin margen</dt><dd>{percent(pricedEvaluation?.noVigProbability)}</dd></div><div><dt>Edge</dt><dd>{directQuote ? percent(pricedEvaluation?.edge) : "No disponible"}</dd></div><div><dt>EV</dt><dd>{directQuote ? percent(pricedEvaluation?.expectedValue) : "No disponible"}</dd></div><div><dt>Bookmakers</dt><dd>{pricedEvaluation?.bookmakerCount ?? 0}</dd></div></dl>
-      <div className="daily-score"><strong>{Number(recommendation.scoreTotal).toFixed(1)}</strong><span>{labels[category]}</span><small>PENDING_REVIEW</small></div>
-      <div className="daily-detail"><p><b>Razones:</b> {reasons.length ? reasons.join(" · ") : "Revisión automática explicable"}</p><p><b>Riesgos:</b> {risks.length ? risks.join(" · ").replaceAll("_", " ") : "No disponible"}</p><p><b>Histórico propio:</b> muestra {calibration.sample} · {calibration.status === "BOOTSTRAP" ? "Calibración en construcción" : calibration.status}</p></div>
+      <div className="daily-score"><strong>{Number(recommendation.scoreTotal).toFixed(1)}</strong><span>{labels[category]}</span><small>Pendiente de revisión</small></div>
+      <DailyMarketAnalysis evaluations={candidate.evaluations} discarded={category === "PASS"} />
+      <div className="daily-detail"><p><b>Razones:</b> {reasons.length ? reasons.map(readable).join(" · ") : "Revisión automática explicable"}</p><p><b>Riesgos:</b> {risks.length ? risks.map(readable).join(" · ") : "No disponible"}</p><p><b>Histórico propio:</b> muestra {calibration.sample} · {calibration.status === "BOOTSTRAP" ? "Calibración en construcción" : calibration.status}</p></div>
     </article>;
   });
 

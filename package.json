@@ -45,7 +45,8 @@
     "market-v2:daily": "tsx scripts/market-v2-daily.ts",
     "market-v2:daily:derive": "tsx scripts/market-v2-daily-derive.ts",
     "market-v2:settle-pending": "tsx scripts/market-v2-settle-pending.ts",
-    "market-v2:automatic-replay": "tsx scripts/market-v2-automatic-replay.ts"
+    "market-v2:automatic-replay": "tsx scripts/market-v2-automatic-replay.ts",
+    "market-v2:odds-diagnostic": "tsx scripts/market-v2-odds-diagnostic.ts"
     ,"market-v2:team-aliases": "tsx scripts/market-v2-team-aliases.ts"
   },
   "prisma": {

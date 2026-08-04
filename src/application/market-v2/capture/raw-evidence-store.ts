@@ -3,7 +3,8 @@ export type RawEvidenceEndpointKey =
   | "fixtures-by-competition-window"
   | "prediction-by-fixture"
   | "fixture-result-by-id"
-  | "odds-upcoming";
+  | "odds-upcoming"
+  | "odds-by-sport";
 
 export type RawEvidenceCandidate = Readonly<{
   providerKey: "api-football" | "the-odds-api";
