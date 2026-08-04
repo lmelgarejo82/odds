@@ -1,0 +1,11 @@
+[Unit]
+Description=Settle Odds Market V2 fixtures twice daily in America/Asuncion
+
+[Timer]
+OnCalendar=*-*-* 03:30:00 America/Asuncion
+OnCalendar=*-*-* 12:30:00 America/Asuncion
+Persistent=true
+Unit=odds-market-v2-settle.service
+
+[Install]
+WantedBy=timers.target
