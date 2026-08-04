@@ -1333,12 +1333,13 @@ model Provider {
 }
 
 model Team {
-  id           String    @id
-  canonicalKey String    @unique
-  displayName  String
-  createdAtUtc DateTime  @default(now())
-  homeFixtures Fixture[] @relation("DailyHomeTeam")
-  awayFixtures Fixture[] @relation("DailyAwayTeam")
+  id              String              @id
+  canonicalKey    String              @unique
+  displayName     String
+  createdAtUtc    DateTime            @default(now())
+  homeFixtures    Fixture[]           @relation("DailyHomeTeam")
+  awayFixtures    Fixture[]           @relation("DailyAwayTeam")
+  providerAliases ProviderTeamAlias[]
 }
 
 model Fixture {
@@ -1359,6 +1360,8 @@ model Fixture {
   awayTeam           Team                      @relation("DailyAwayTeam", fields: [awayTeamId], references: [id], onDelete: Restrict)
   providerIdentities ProviderFixtureIdentity[]
   candidates         DailyFixtureCandidate[]
+  dailyOutcomes      DailyOutcome[]
+  settlementEvidence DailySettlementEvidence[]
 
   @@index([sportsDate, kickoffAtUtc])
   @@index([competitionKey])
@@ -1404,6 +1407,17 @@ model DailyAnalysisRun {
   oddsDiagnosticsJson            String                      @default("[]")
   historicalDatasetFound         Boolean                     @default(false)
   historicalMarketsCalibrated    Int                         @default(0)
+  aliasRegistryVersion           String?
+  matcherVersion                 String?
+  selectionPolicyVersion         String?
+  fixturesMatchedExact           Int                         @default(0)
+  fixturesMatchedAlias           Int                         @default(0)
+  fixturesUnmatched              Int                         @default(0)
+  fixturesAmbiguous              Int                         @default(0)
+  usableOddsCount                Int                         @default(0)
+  h2hMarketsMatched              Int                         @default(0)
+  totals25MarketsMatched         Int                         @default(0)
+  doubleChanceOffered            Boolean                     @default(false)
   marketValueCalculated          Boolean
   fixturesDiscovered             Int
   fixturesEligible               Int
@@ -1446,34 +1460,36 @@ model DailyFixtureCandidate {
 }
 
 model DailyMarketEvaluation {
-  id                       String                @id
-  candidateId              String
-  market                   String
-  evaluationStatus         String
-  modelProbability         Decimal?
-  fairOdds                 Decimal?
-  bestMarketOdds           Decimal?
-  marketImpliedProbability Decimal?
-  marketMargin             Decimal?
-  noVigProbability         Decimal?
-  edge                     Decimal?
-  expectedValue            Decimal?
-  bookmakerDispersion      Decimal?
-  bookmakerCount           Int                   @default(0)
-  consensusOdds            Decimal?
-  historicalSample         Int
-  historicalHitRate        Decimal?
-  historicalBrierScore     Decimal?
-  wilsonLower95            Decimal?
-  wilsonUpper95            Decimal?
-  datasetVersion           String?
-  calibrationStatus        String                @default("MISSING_HISTORY")
-  matchingJson             String                @default("{}")
-  reasonsJson              String
-  warningsJson             String
-  createdAtUtc             DateTime              @default(now())
-  candidate                DailyFixtureCandidate @relation(fields: [candidateId], references: [id], onDelete: Restrict)
-  recommendations          DailyRecommendation[]
+  id                        String                @id
+  candidateId               String
+  market                    String
+  evaluationStatus          String
+  modelProbability          Decimal?
+  fairOdds                  Decimal?
+  bestMarketOdds            Decimal?
+  marketImpliedProbability  Decimal?
+  marketMargin              Decimal?
+  noVigProbability          Decimal?
+  edge                      Decimal?
+  expectedValue             Decimal?
+  bookmakerDispersion       Decimal?
+  bookmakerCount            Int                   @default(0)
+  consensusOdds             Decimal?
+  historicalSample          Int
+  historicalHitRate         Decimal?
+  historicalBrierScore      Decimal?
+  wilsonLower95             Decimal?
+  wilsonUpper95             Decimal?
+  datasetVersion            String?
+  calibrationStatus         String                @default("MISSING_HISTORY")
+  matchingJson              String                @default("{}")
+  offeredOddsStatus         String                @default("OFFERED_ODDS_UNAVAILABLE")
+  unsupportedMarketKeysJson String                @default("[]")
+  reasonsJson               String
+  warningsJson              String
+  createdAtUtc              DateTime              @default(now())
+  candidate                 DailyFixtureCandidate @relation(fields: [candidateId], references: [id], onDelete: Restrict)
+  recommendations           DailyRecommendation[]
 
   @@unique([candidateId, market])
 }
@@ -1496,6 +1512,9 @@ model DailyRecommendation {
   penaltiesTotal             Decimal
   explanationJson            String
   risksJson                  String
+  modelSuggestedMarket       String?
+  bestPricedMarket           String?
+  automaticCategory          String                @default("PASS")
   createdAtUtc               DateTime              @default(now())
   candidate                  DailyFixtureCandidate @relation(fields: [candidateId], references: [id], onDelete: Restrict)
   marketEvaluation           DailyMarketEvaluation @relation(fields: [marketEvaluationId], references: [id], onDelete: Restrict)
@@ -1519,19 +1538,44 @@ model DailyExclusion {
 }
 
 model DailyRawEvidence {
-  id               String           @id
-  runId            String
-  providerKey      String
-  endpointKey      String
-  capturedAtUtc    DateTime
-  contentHash      String
-  byteLength       Int
-  mediaType        String
-  storageReference String
-  createdAtUtc     DateTime         @default(now())
-  run              DailyAnalysisRun @relation(fields: [runId], references: [id], onDelete: Restrict)
+  id                  String              @id
+  runId               String
+  providerKey         String
+  endpointKey         String
+  capturedAtUtc       DateTime
+  contentHash         String
+  byteLength          Int
+  mediaType           String
+  storageReference    String
+  createdAtUtc        DateTime            @default(now())
+  run                 DailyAnalysisRun    @relation(fields: [runId], references: [id], onDelete: Restrict)
+  providerTeamAliases ProviderTeamAlias[]
 
   @@unique([runId, providerKey, endpointKey, contentHash])
+}
+
+model ProviderTeamAlias {
+  id                      String           @id
+  providerKey             String
+  canonicalTeamId         String
+  providerAliasRaw        String
+  providerAliasNormalized String
+  canonicalNameAtApproval String
+  countryScope            String?
+  competitionScope        String?
+  scopeKey                String
+  status                  String
+  approvalMethod          String
+  sourceArtifactId        String
+  evidenceJson            String
+  registryVersion         String
+  createdAtUtc            DateTime         @default(now())
+  canonicalTeam           Team             @relation(fields: [canonicalTeamId], references: [id], onDelete: Restrict)
+  sourceArtifact          DailyRawEvidence @relation(fields: [sourceArtifactId], references: [id], onDelete: Restrict)
+
+  @@unique([providerKey, providerAliasNormalized, scopeKey, canonicalTeamId, status, registryVersion])
+  @@index([providerKey, providerAliasNormalized, scopeKey, status])
+  @@index([canonicalTeamId, status])
 }
 
 model DailyProviderRequestAudit {
@@ -1550,6 +1594,67 @@ model DailyProviderRequestAudit {
   provider           Provider         @relation(fields: [providerId], references: [id], onDelete: Restrict)
 
   @@unique([runId, providerId, endpointKey, attemptNumber])
+}
+
+model DailySettlementRun {
+  id               String                    @id
+  mode             String
+  status           String
+  startedAtUtc     DateTime
+  completedAtUtc   DateTime
+  eligibleFixtures Int
+  requestsBudget   Int
+  requestsMade     Int
+  evidenceCreated  Int
+  outcomesCreated  Int
+  pendingFixtures  Int
+  warningsJson     String
+  createdAtUtc     DateTime                  @default(now())
+  evidence         DailySettlementEvidence[]
+  outcomes         DailyOutcome[]
+
+  @@index([completedAtUtc])
+}
+
+model DailySettlementEvidence {
+  id               String             @id
+  settlementRunId  String
+  fixtureId        String
+  providerKey      String
+  endpointKey      String
+  capturedAtUtc    DateTime
+  contentHash      String
+  byteLength       Int
+  mediaType        String
+  storageReference String
+  createdAtUtc     DateTime           @default(now())
+  settlementRun    DailySettlementRun @relation(fields: [settlementRunId], references: [id], onDelete: Restrict)
+  fixture          Fixture            @relation(fields: [fixtureId], references: [id], onDelete: Restrict)
+  outcomes         DailyOutcome[]
+
+  @@unique([settlementRunId, fixtureId, contentHash])
+  @@index([fixtureId, capturedAtUtc])
+}
+
+model DailyOutcome {
+  id                     String                  @id
+  settlementRunId        String
+  fixtureId              String
+  sourceEvidenceId       String
+  providerFixtureId      String
+  observedAtUtc          DateTime
+  providerTerminalStatus String
+  result1X2              String
+  regulationHomeScore    Int
+  regulationAwayScore    Int
+  createdAtUtc           DateTime                @default(now())
+  settlementRun          DailySettlementRun      @relation(fields: [settlementRunId], references: [id], onDelete: Restrict)
+  fixture                Fixture                 @relation(fields: [fixtureId], references: [id], onDelete: Restrict)
+  sourceEvidence         DailySettlementEvidence @relation(fields: [sourceEvidenceId], references: [id], onDelete: Restrict)
+
+  @@unique([fixtureId, sourceEvidenceId])
+  @@index([fixtureId, observedAtUtc])
+  @@index([result1X2])
 }
 
 model MarketPriorityAuditEvent {
