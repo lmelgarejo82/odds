@@ -22,7 +22,7 @@ export const AUTOMATIC_DAILY_RANKING_POLICY = Object.freeze({
 });
 
 export type AutomaticCategory = "VALUE_DETECTED" | "MODEL_REVIEW" | "WATCH" | "PASS";
-export type AutomaticMatchMethod = "EXACT" | "UNIQUE_HIGH_CONFIDENCE" | "REJECTED";
+export type AutomaticMatchMethod = "EXACT_NORMALIZED" | "UNIQUE_HIGH_CONFIDENCE" | "REJECTED";
 
 export type AutomaticFixture = Readonly<{
   fixtureId: string;
@@ -136,12 +136,12 @@ export function matchAutomaticFixture(
     return { event, home, away, evidence, exact, high, reversed };
   });
   const viable = candidates.filter((candidate) => !candidate.reversed && (candidate.exact || candidate.high));
-  if (viable.length === 1 && within.length === 1) {
+  if (viable.length === 1) {
     const selected = viable[0];
     const delta = Math.abs(Date.parse(selected.event.kickoffAtUtc) - Date.parse(fixture.kickoffAtUtc)) / 1000;
     return Object.freeze({
       ...base,
-      method: selected.exact ? "EXACT" : "UNIQUE_HIGH_CONFIDENCE",
+      method: selected.exact ? "EXACT_NORMALIZED" : "UNIQUE_HIGH_CONFIDENCE",
       confidence: selected.exact ? 1 : Math.min(selected.home, selected.away),
       matchedEventId: selected.event.id,
       namesCompared: {
@@ -155,7 +155,7 @@ export function matchAutomaticFixture(
       warnings: [],
     });
   }
-  const warning = within.length === 0 ? "KICKOFF_OUTSIDE_TOLERANCE" : candidates.some((x) => x.reversed) ? "ORIENTATION_REVERSED" : viable.length > 1 || within.length > 1 ? "AMBIGUOUS_EVENT" : candidates.some((x) => x.home >= AUTOMATIC_ODDS_MATCHING_POLICY.minimumTeamSimilarity || x.away >= AUTOMATIC_ODDS_MATCHING_POLICY.minimumTeamSimilarity) ? "ONLY_ONE_TEAM_MATCHED" : "TEAM_SIMILARITY_INSUFFICIENT";
+  const warning = within.length === 0 ? "KICKOFF_OUTSIDE_TOLERANCE" : candidates.some((x) => x.reversed) ? "ORIENTATION_REVERSED" : viable.length > 1 ? "AMBIGUOUS_EVENT" : candidates.some((x) => x.home >= AUTOMATIC_ODDS_MATCHING_POLICY.minimumTeamSimilarity || x.away >= AUTOMATIC_ODDS_MATCHING_POLICY.minimumTeamSimilarity) ? "ONLY_ONE_TEAM_MATCHED" : "TEAM_SIMILARITY_INSUFFICIENT";
   return Object.freeze({ ...base, method: "REJECTED", confidence: 0, matchedEventId: null, kickoffDeltaSeconds: null, competitionCountryEvidence: [], warnings: [warning] });
 }
 

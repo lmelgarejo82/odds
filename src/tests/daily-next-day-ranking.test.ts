@@ -16,7 +16,7 @@ describe("motor diario D+1", () => {
     expect(filterFixture(fixture,new Date("2026-08-03T12:00:00Z")).eligible).toBe(true);
     expect(filterFixture({...fixture,status:"FT"},new Date("2026-08-03T12:00:00Z")).reasonCode).toBe("STATUS_NOT_NS");
     expect(filterFixture({...fixture,competitionName:"International Friendly"},new Date("2026-08-03T12:00:00Z")).reasonCode).toBe("FRIENDLY_EXCLUDED");
-    expect(filterFixture({...fixture,kickoffAtUtc:"2026-08-02T12:00:00Z"},new Date("2026-08-03T12:00:00Z")).reasonCode).toBe("KICKOFF_NOT_FUTURE");
+    expect(filterFixture(fixture,new Date("2026-08-04T19:00:00Z")).reasonCode).toBe("KICKOFF_NOT_FUTURE");
   });
   it("hace binding determinista sin fuzzy silencioso", () => {
     expect(deterministicFixtureMatch(fixture,{homeName:"Olimpia",awayName:"Cerro Porteno",kickoffAtUtc:"2026-08-04T18:10:00Z"})).toBe(true);
