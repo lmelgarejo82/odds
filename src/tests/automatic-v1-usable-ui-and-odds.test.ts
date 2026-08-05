@@ -4,7 +4,7 @@ import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it, vi } from "vitest";
 import { DailyMarketAnalysis, marketDisplayState } from "@/components/daily-market-analysis";
 import { matchAutomaticFixture, type AutomaticOddsEvent } from "@/domain/market-v2/automatic-review-v1";
-import { selectOddsAcquisition } from "@/domain/market-v2/odds-acquisition";
+import { selectOddsAcquisition, type OddsCapabilityView } from "@/domain/market-v2/odds-acquisition";
 import { diagnoseFrozenOddsSet } from "@/domain/market-v2/odds-offline-diagnostic";
 import type { DiscoveredFixture } from "@/domain/market-v2/daily-analysis";
 import { TheOddsApiClient } from "@/infrastructure/market-v2/the-odds-api/client";
@@ -12,29 +12,31 @@ import { TheOddsApiClient } from "@/infrastructure/market-v2/the-odds-api/client
 const fixture = (overrides: Partial<DiscoveredFixture> = {}): DiscoveredFixture => ({ providerFixtureId: "f1", providerCompetitionId: "525", providerHomeTeamId: "h", providerAwayTeamId: "a", sportsDate: "2026-08-05", kickoffAtUtc: "2026-08-05T11:00:00.000Z", sourceTimezone: "UTC", status: "NS", season: 2026, round: "Semi-final", competitionName: "UEFA Champions League Women", country: "World", homeName: "SFK 2000 W", awayName: "PSV/Eindhoven W", ...overrides });
 const event = (overrides: Partial<AutomaticOddsEvent> = {}): AutomaticOddsEvent => ({ id: "e1", homeName: "SFK Sarajevo 2000 Women", awayName: "PSV Eindhoven Women", kickoffAtUtc: "2026-08-05T11:10:00.000Z", sportKey: "soccer_uefa_champs_league_women", sportTitle: "UEFA Champions League Women", ...overrides });
 const automaticFixture = () => { const value = fixture(); return { fixtureId: value.providerFixtureId, homeName: value.homeName, awayName: value.awayName, kickoffAtUtc: value.kickoffAtUtc, competitionName: value.competitionName, country: value.country }; };
+const supported = (sportKey: string, totalsStatus: OddsCapabilityView["totalsStatus"] = "UNKNOWN"): OddsCapabilityView => ({ sportKey, catalogActive: true, h2hStatus: "SUPPORTED", totalsStatus });
 
 describe("ETAPA 20C: UI usable y adquisición de odds", () => {
   it("agrupa por sport key, deriva la ventana de los fixtures y marca competiciones sin cobertura", () => {
-    const selection = selectOddsAcquisition([fixture(), fixture({ providerFixtureId: "f2", kickoffAtUtc: "2026-08-05T12:00:00.000Z" }), fixture({ providerFixtureId: "friendly", competitionName: "Friendlies Clubs" })]);
+    const selection = selectOddsAcquisition([fixture(), fixture({ providerFixtureId: "f2", kickoffAtUtc: "2026-08-05T12:00:00.000Z" }), fixture({ providerFixtureId: "friendly", competitionName: "Friendlies Clubs" })], [supported("soccer_uefa_champs_league_women")]);
     expect(selection.requestBudget).toBe(3);
-    expect(selection.requests).toEqual([{ sportKey: "soccer_uefa_champs_league_women", commenceTimeFrom: "2026-08-05T10:40:00.000Z", commenceTimeTo: "2026-08-05T12:20:00.000Z", fixtureIds: ["f1", "f2"] }]);
+    expect(selection.requests).toEqual([{ sportKey: "soccer_uefa_champs_league_women", commenceTimeFrom: "2026-08-05T10:40:00.000Z", commenceTimeTo: "2026-08-05T12:20:00.000Z", fixtureIds: ["f1", "f2"], regions: ["eu"], markets: ["h2h"] }]);
     expect(selection.diagnostics.find((value) => value.fixtureId === "friendly")).toMatchObject({ sportKey: null, status: "ODDS_COMPETITION_NOT_COVERED" });
   });
 
   it("respeta máximo tres sport keys y no usa polling", () => {
-    const selection = selectOddsAcquisition([
+    const values = [
       fixture({ providerFixtureId: "epl", competitionName: "Premier League", country: "England" }),
       fixture({ providerFixtureId: "laliga", competitionName: "La Liga", country: "Spain" }),
       fixture({ providerFixtureId: "bundesliga", competitionName: "Bundesliga", country: "Germany" }),
       fixture({ providerFixtureId: "seriea", competitionName: "Serie A", country: "Italy" }),
-    ]);
+    ];
+    const selection = selectOddsAcquisition(values, [supported("soccer_epl"), supported("soccer_spain_la_liga"), supported("soccer_germany_bundesliga"), supported("soccer_italy_serie_a")]);
     expect(selection.requests).toHaveLength(3);
     expect(selection.diagnostics.filter((value) => value.status === "ODDS_SPORT_KEY_BUDGET_EXCEEDED")).toHaveLength(1);
   });
 
   it("solicita exclusivamente el sport key y ventana elegidos con una respuesta simulada", async () => {
     const fetchImpl = vi.fn(async (input: string | URL) => {
-      const url = new URL(input); expect(url.pathname).toBe("/v4/sports/soccer_uefa_champs_league_women/odds/"); expect(url.searchParams.get("commenceTimeFrom")).toBe("2026-08-05T10:40:00.000Z"); expect(url.searchParams.get("commenceTimeTo")).toBe("2026-08-05T11:20:00.000Z");
+      const url = new URL(input); expect(url.pathname).toBe("/v4/sports/soccer_uefa_champs_league_women/odds/"); expect(url.searchParams.get("commenceTimeFrom")).toBe("2026-08-05T10:40:00Z"); expect(url.searchParams.get("commenceTimeTo")).toBe("2026-08-05T11:20:00Z");
       return new Response(JSON.stringify([{ id: "e1", sport_key: "soccer_uefa_champs_league_women", commence_time: "2026-08-05T11:00:00Z", home_team: "SFK 2000 W", away_team: "PSV/Eindhoven W", bookmakers: [] }]), { status: 200 });
     });
     const client = new TheOddsApiClient({ apiKey: "synthetic-key", fetchImpl: fetchImpl as typeof fetch, clock: { nowUtc: () => "2026-08-04T20:00:00.000Z" } });
