@@ -1596,6 +1596,62 @@ model DailyProviderRequestAudit {
   @@unique([runId, providerId, endpointKey, attemptNumber])
 }
 
+model OddsSportCatalogSnapshot {
+  id                String                  @id
+  provider          String
+  capturedAtUtc     DateTime
+  contentHash       String
+  byteLength        Int
+  evidenceReference String
+  policyVersion     String
+  createdAtUtc      DateTime                @default(now())
+  entries           OddsSportCatalogEntry[]
+
+  @@unique([contentHash, capturedAtUtc])
+  @@index([provider, capturedAtUtc])
+}
+
+model OddsSportCatalogEntry {
+  id                String                   @id
+  snapshotId        String
+  key               String
+  group             String
+  title             String
+  description       String
+  active            Boolean
+  hasOutrights      Boolean
+  capturedAtUtc     DateTime
+  evidenceReference String
+  createdAtUtc      DateTime                 @default(now())
+  snapshot          OddsSportCatalogSnapshot @relation(fields: [snapshotId], references: [id], onDelete: Restrict)
+
+  @@unique([snapshotId, key])
+  @@index([key, capturedAtUtc])
+}
+
+model OddsSportCapability {
+  id                       String   @id
+  provider                 String
+  sportKey                 String
+  catalogActive            Boolean
+  eventsEndpointValidated  Boolean
+  h2hStatus                String
+  totalsStatus             String
+  regionsValidatedJson     String
+  lastHttpStatus           Int?
+  lastProviderErrorCode    String?
+  lastValidatedAt          DateTime
+  evidenceReference        String
+  catalogEvidenceReference String
+  eventsEvidenceReference  String?
+  h2hEvidenceReference     String?
+  policyVersion            String
+  createdAtUtc             DateTime @default(now())
+
+  @@unique([provider, sportKey, lastValidatedAt, policyVersion])
+  @@index([provider, sportKey, lastValidatedAt])
+}
+
 model DailySettlementRun {
   id               String                    @id
   mode             String

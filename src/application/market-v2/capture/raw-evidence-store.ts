@@ -4,7 +4,10 @@ export type RawEvidenceEndpointKey =
   | "prediction-by-fixture"
   | "fixture-result-by-id"
   | "odds-upcoming"
-  | "odds-by-sport";
+  | "odds-by-sport"
+  | "odds-sports-catalog"
+  | "odds-sport-events"
+  | "odds-provider-error";
 
 export type RawEvidenceCandidate = Readonly<{
   providerKey: "api-football" | "the-odds-api";

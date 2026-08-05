@@ -3,13 +3,13 @@ import { PrismaClient } from "@prisma/client";
 import { ApiFootballClient } from "@/infrastructure/market-v2/api-football/client";
 import { buildApiFootballConfig } from "@/infrastructure/market-v2/api-football/config";
 import { OperationalRawEvidenceStore } from "@/infrastructure/market-v2/capture/operational-evidence-store";
-import { TheOddsApiClient, TheOddsApiError, type OddsApiEvent } from "@/infrastructure/market-v2/the-odds-api/client";
+import { classifyOddsProviderFailure, TheOddsApiClient, TheOddsApiError, type OddsApiEvent } from "@/infrastructure/market-v2/the-odds-api/client";
 import { evaluateMarkets, filterFixture, sportsDateD1, type DailyPrediction, type DiscoveredFixture, type MarketQuote } from "@/domain/market-v2/daily-analysis";
 import type { ApiFootballFixtureDto, ApiFootballPredictionDto } from "@/infrastructure/market-v2/api-football/contracts";
 import type { RawEvidenceDescriptor } from "@/application/market-v2/capture/raw-evidence-store";
 import { AUTOMATIC_DAILY_RANKING_POLICY, AUTOMATIC_ODDS_MATCHING_POLICY, matchAutomaticFixture, scoreAutomaticReview, selectAutomaticReview, type AutomaticCategory } from "@/domain/market-v2/automatic-review-v1";
 import { mapPriceableOdds } from "@/domain/market-v2/odds-market-mapping";
-import { ODDS_ACQUISITION_POLICY, selectOddsAcquisition } from "@/domain/market-v2/odds-acquisition";
+import { ODDS_ACQUISITION_POLICY, prioritizeDeepFixtures, selectOddsAcquisition, type OddsCapabilityView } from "@/domain/market-v2/odds-acquisition";
 
 export type DailyArguments = Readonly<{ sportsDate: string; databaseUrl: string; evidenceRoot: string; maxFixtures: number; deepCandidates: number; top: number; mode: "full" | "provisional"; dryRun: boolean; allowNetwork: boolean }>;
 export type DailyRunResult = Readonly<{ runId: string; runMode: "MODEL_ONLY_PROVISIONAL" | "FULL"; fixturesDiscovered: number; fixturesEligible: number; fixturesDeepAnalyzed: number; fixturesExcluded: number; recommendations: number; valueDetected: number; modelReview: number; strong: number; interesting: number; watch: number; pass: number; historicalCalibrationAvailable: boolean; oddsAvailable: boolean; oddsResponseReceived:boolean;oddsEventsReceived:number;oddsFixturesMatched:number;oddsMarketsMatched:number;usableOddsAvailable:boolean;marketEvaluationsCreated:number; marketValueCalculated: boolean; topRecommendation: string; apiFootballBudget: number; apiFootballRequests: number; oddsBudget: number; oddsRequests: number; networkUsed: boolean; replayed: boolean }>;
@@ -78,7 +78,7 @@ function extractQuotes(fixtures: readonly DiscoveredFixture[], events: readonly 
   } return {quotes:result,diagnostics,fixturesMatched,marketsMatched:matchedMarkets.size};
 }
 
-export async function runDaily(args: DailyArguments, deps: Readonly<{ fetchImpl?: typeof fetch; apiFootballKey?: () => string | undefined; oddsApiKey?: () => string | undefined; now?: () => Date }> = {}): Promise<DailyRunResult> {
+export async function runDaily(args: DailyArguments, deps: Readonly<{ fetchImpl?: typeof fetch; apiFootballKey?: () => string | undefined; oddsApiKey?: () => string | undefined; now?: () => Date; oddsCapabilities?: readonly OddsCapabilityView[] }> = {}): Promise<DailyRunResult> {
   const historicalAvailable = false;
   if (args.mode === "full" && !historicalAvailable) fail("FULL_MODE_REQUIRES_VALIDATED_HISTORY");
   const started = (deps.now?.() ?? new Date()).toISOString(); const apiBudget = 1 + args.deepCandidates; const oddsBudget = ODDS_ACQUISITION_POLICY.maximumRequestsPerRun;
@@ -97,8 +97,11 @@ export async function runDaily(args: DailyArguments, deps: Readonly<{ fetchImpl?
     evidence.push(published.descriptor);
     fixtures = response.payload.response.slice(0, args.maxFixtures).map((row) => mapFixture(row, args.sportsDate));
   }
-  const now = deps.now?.() ?? new Date(); const filtered = fixtures.map((fixture) => ({ fixture, filter: filterFixture(fixture, now) })); const eligible = filtered.filter((item) => item.filter.eligible).slice(0, args.maxFixtures); const deep = eligible.slice(0, args.deepCandidates);
-  const oddsAcquisition = selectOddsAcquisition(deep.map((item) => item.fixture));
+  const now = deps.now?.() ?? new Date(); const filtered = fixtures.map((fixture) => ({ fixture, filter: filterFixture(fixture, now) })); const eligible = filtered.filter((item) => item.filter.eligible).slice(0, args.maxFixtures);
+  let capabilities = deps.oddsCapabilities ?? [];
+  if (!args.dryRun && !deps.oddsCapabilities) { const capabilityDb = new PrismaClient({ datasourceUrl: args.databaseUrl }); try { const rows = await capabilityDb.oddsSportCapability.findMany({ where: { provider: "the-odds-api" }, orderBy: { lastValidatedAt: "desc" } }); const seen = new Set<string>(); capabilities = rows.flatMap((row) => { if (seen.has(row.sportKey)) return []; seen.add(row.sportKey); return [{ sportKey: row.sportKey, catalogActive: row.catalogActive, h2hStatus: row.h2hStatus as OddsCapabilityView["h2hStatus"], totalsStatus: row.totalsStatus as OddsCapabilityView["totalsStatus"] }]; }); } finally { await capabilityDb.$disconnect(); } }
+  const prioritized = prioritizeDeepFixtures(eligible, capabilities, args.deepCandidates); const deep = prioritized.selected;
+  const oddsAcquisition = selectOddsAcquisition(deep.map((item) => item.fixture), capabilities);
   if (args.dryRun) deep.forEach((item, index) => predictions.set(item.fixture.providerFixtureId, syntheticPrediction(index)));
   else {
     const key = deps.apiFootballKey?.(); if (!key) fail("API_FOOTBALL_KEY_REQUIRED"); const client = new ApiFootballClient({ config: buildApiFootballConfig({ API_FOOTBALL_KEY: key }), fetchImpl: deps.fetchImpl ?? fetch, clock: nowClock });
@@ -126,10 +129,12 @@ export async function runDaily(args: DailyArguments, deps: Readonly<{ fetchImpl?
           evidence.push(published.descriptor); capturedEvents.push(...response.events); oddsEventsReceived += response.events.length; oddsCaptureSucceeded = true;
           audits.push({ providerKey: "the-odds-api", endpointKey: `odds-by-sport:${request.sportKey}`, startedAtUtc, finishedAtUtc: new Date().toISOString(), httpStatus: response.httpStatus, classification: "SUCCESS" });
         } catch (error) {
-          const known = error instanceof TheOddsApiError ? error : null; const sanitizedErrorCode = known?.sanitizedCode ?? "ODDS_NETWORK_FAILURE";
+          const known = error instanceof TheOddsApiError ? error : null;
+          if (known?.providerFailure) { const failureEvidence = await evidenceStore!.publish({ providerKey: "the-odds-api", endpointKey: "odds-provider-error", capturedAtUtc: known.providerFailure.capturedAtUtc, mediaType: "application/json", bytes: known.providerFailure.evidenceBytes, sourceReference: `daily:${args.sportsDate}:odds:${request.sportKey}:error` }); if (!failureEvidence.ok) fail("ODDS_ERROR_EVIDENCE_FAILED"); evidence.push(failureEvidence.descriptor); }
+          const sanitizedErrorCode = known?.providerFailure ? classifyOddsProviderFailure(known.providerFailure) : known?.sanitizedCode ?? "ODDS_NETWORK_FAILURE";
           oddsResponseReceived = oddsResponseReceived || (known?.responseReceived ?? false);
           oddsDiagnostics = [...oddsDiagnostics, { sportKey: request.sportKey, fixtureIds: request.fixtureIds, code: sanitizedErrorCode }];
-          audits.push({ providerKey: "the-odds-api", endpointKey: `odds-by-sport:${request.sportKey}`, startedAtUtc, finishedAtUtc: new Date().toISOString(), httpStatus: known?.httpStatus ?? null, classification: sanitizedErrorCode === "ODDS_COMPETITION_NOT_COVERED" ? "NOT_COVERED" : "UNAVAILABLE", sanitizedErrorCode });
+          audits.push({ providerKey: "the-odds-api", endpointKey: `odds-by-sport:${request.sportKey}`, startedAtUtc, finishedAtUtc: new Date().toISOString(), httpStatus: known?.httpStatus ?? null, classification: known?.providerFailure ? "PROVIDER_VALIDATION_ERROR" : "UNAVAILABLE", sanitizedErrorCode });
         }
       }
       if (capturedEvents.length > 0) { const extracted=extractQuotes(deep.map((d) => d.fixture), capturedEvents);oddsFixturesMatched=extracted.fixturesMatched;oddsMarketsMatched=extracted.marketsMatched;oddsDiagnostics=[...oddsDiagnostics,...extracted.diagnostics];for (const [id, quotes] of extracted.quotes) quotesByFixture.set(id, quotes); }
@@ -151,7 +156,7 @@ export async function runDaily(args: DailyArguments, deps: Readonly<{ fetchImpl?
         const f = item.fixture; const fixtureId = `fixture-${token("fixture", f.providerFixtureId).slice(0, 24)}`;
         if (!item.filter.eligible) { await tx.dailyExclusion.create({ data: { id: `exc-${token(runId, f.providerFixtureId).slice(0, 24)}`, runId, providerFixtureId: f.providerFixtureId, fixtureLabel: `${f.homeName} — ${f.awayName}`, reasonCode: item.filter.reasonCode, detailsJson: "{}" } }); continue; }
         const candidateId = `cand-${token(runId, f.providerFixtureId).slice(0, 24)}`, pred = predictions.get(f.providerFixtureId);
-        await tx.dailyFixtureCandidate.create({ data: { id: candidateId, runId, fixtureId, eligible: true, deepAnalyzed: Boolean(pred), discoveryOrdinal: ordinal + 1, dataQuality: item.filter.quality, predictionJson: pred ? JSON.stringify(pred) : null, reasonsJson: JSON.stringify([item.filter.reasonCode]), warningsJson: JSON.stringify(pred ? [] : ["PREDICTION_UNAVAILABLE"]) } });
+        await tx.dailyFixtureCandidate.create({ data: { id: candidateId, runId, fixtureId, eligible: true, deepAnalyzed: Boolean(pred), discoveryOrdinal: ordinal + 1, dataQuality: item.filter.quality, predictionJson: pred ? JSON.stringify(pred) : null, reasonsJson: JSON.stringify([item.filter.reasonCode, prioritized.reasons.get(f.providerFixtureId) ?? "NO_VALIDATED_SPORT_KEY"]), warningsJson: JSON.stringify(pred ? [] : ["PREDICTION_UNAVAILABLE"]) } });
         for (const evaluation of evaluationsByFixture.get(f.providerFixtureId) ?? []) {
           const evalId = `eval-${token(candidateId, evaluation.market).slice(0, 24)}`;
           await tx.dailyMarketEvaluation.create({ data: { id: evalId, candidateId, market: evaluation.market, evaluationStatus: evaluation.status, modelProbability: evaluation.modelProbability, fairOdds: evaluation.fairOdds, bestMarketOdds: evaluation.bestMarketOdds, marketImpliedProbability: evaluation.bestMarketOdds === null ? null : 1 / evaluation.bestMarketOdds, noVigProbability: evaluation.noVigProbability, marketMargin: evaluation.marketMargin, edge: evaluation.edge, expectedValue: evaluation.expectedValue, bookmakerDispersion: evaluation.dispersion, bookmakerCount: evaluation.bookmakerCount, consensusOdds: evaluation.consensusOdds, historicalSample: 0, calibrationStatus: "BOOTSTRAP", offeredOddsStatus: evaluation.bestMarketOdds === null ? "SIN_COTIZACION_DIRECTA" : "OFFERED_ODDS_AVAILABLE", matchingJson: JSON.stringify(oddsDiagnostics.find((value) => typeof value === "object" && value !== null && (value as { fixtureId?: string }).fixtureId === f.providerFixtureId) ?? {}), reasonsJson: "[]", warningsJson: JSON.stringify(evaluation.warnings) } });
