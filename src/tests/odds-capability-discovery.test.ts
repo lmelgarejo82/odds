@@ -42,8 +42,20 @@ describe("ETAPA 20E: descubrimiento de capacidades y errores 422", () => {
     const selection = selectOddsAcquisition([fixture("1").fixture], [capability()]); expect(selection.requests).toHaveLength(1); expect(selection.requests[0].markets).toEqual(["h2h"]);
   });
 
-  it("prioriza hasta ocho cubiertos y reserva dos MODEL_ONLY", () => {
-    const covered = Array.from({ length: 9 }, (_, index) => fixture(`c${index}`, "UEFA Champions League Women", "World", 1 - index / 100)); const modelOnly = Array.from({ length: 4 }, (_, index) => fixture(`m${index}`, "Friendlies Clubs", "World", .9 - index / 100));
-    const result = prioritizeDeepFixtures([...covered, ...modelOnly], [capability()], 10); expect(result.selected.filter((value) => result.reasons.get(value.fixture.providerFixtureId) === "ODDS_COVERAGE_PRIORITY")).toHaveLength(8); expect(result.selected.filter((value) => result.reasons.get(value.fixture.providerFixtureId) === "MODEL_ONLY_RESERVED_SLOT")).toHaveLength(2); expect(result.reasons.get("m2")).toBe("NO_VALIDATED_SPORT_KEY");
+  it("analiza hasta diez aunque no exista ninguna sport key validada", () => {
+    const modelOnly = Array.from({ length: 14 }, (_, index) => fixture(`m${index}`, "Friendlies Clubs", "World", 1 - index / 100));
+    const result = prioritizeDeepFixtures(modelOnly, [], 10);
+    expect(result.selected).toHaveLength(10);
+    expect(result.selected.every((value) => result.reasons.get(value.fixture.providerFixtureId) === "MODEL_ANALYSIS_PRIORITY")).toBe(true);
+    expect(result.reasons.get("m10")).toBe("DEEP_ANALYSIS_BUDGET_EXCEEDED");
+  });
+
+  it("usa cobertura de cuotas solo para desempatar la calidad", () => {
+    const higherQualityModelOnly = fixture("model", "Friendlies Clubs", "World", 1);
+    const covered = fixture("covered", "UEFA Champions League Women", "World", .9);
+    const tiedModelOnly = fixture("tied", "Friendlies Clubs", "World", .9);
+    const result = prioritizeDeepFixtures([tiedModelOnly, covered, higherQualityModelOnly], [capability()], 3);
+    expect(result.selected.map((value) => value.fixture.providerFixtureId)).toEqual(["model", "covered", "tied"]);
+    expect(result.reasons.get("covered")).toBe("ODDS_COVERAGE_PRIORITY");
   });
 });

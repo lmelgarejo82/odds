@@ -1,5 +1,9 @@
 export const DAILY_TIME_ZONE = "America/Asuncion" as const;
 export const DAILY_LOCALE = "es-PY" as const;
+export const DAILY_FIXTURE_DISCOVERY_POLICY = Object.freeze({
+  version: "fixture-discovery/asuncion-day-v1",
+  timezone: DAILY_TIME_ZONE,
+});
 export const DAILY_SCORING_POLICY = Object.freeze({
   version: "daily-ranking/1.1.0",
   weights: Object.freeze({ modelConfidence: 25, historicalCalibration: 25, marketValue: 25, contextualAgreement: 15, dataQuality: 10 }),
