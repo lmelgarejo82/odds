@@ -9,7 +9,7 @@ export const ODDS_ACQUISITION_POLICY = Object.freeze({
 });
 
 export const DEEP_ANALYSIS_SELECTION_POLICY = Object.freeze({
-  version: "deep-analysis/usable-v1",
+  version: "deep-analysis/intelligent-1x-v1",
   oddsCoverageRole: "QUALITY_TIE_BREAKER",
 });
 

@@ -8,6 +8,8 @@ Over 2.5 y Under 2.5 conservan métricas separadas. Un matching ambiguo no es el
 
 La ejecución operativa se realiza a las 10:30 `America/Asuncion` para la fecha deportiva local del mismo día. Solo son elegibles fixtures cuyo kickoff esté al menos 90 minutos por delante de la captura.
 
-La probabilidad se compara contra la tasa base de su familia: 1X2, doble oportunidad y totales no comparten escala. Un empate entre los dos escenarios 1X2 principales o una contradicción con el ganador contextual bloquea la publicación destacada. La interfaz publica como máximo tres señales y conserva el resto como análisis secundario.
+El producto analiza exclusivamente **1X (local o empate)**. Suma ambas probabilidades, exige al menos 75 % y una separación mínima de 15 puntos entre el escenario protegido más débil y la derrota local. La lectura contextual del ganador debe apoyar al local y cualquier contradicción bloquea la publicación. Amistosos, filiales, reservas y categorías U15–U21 quedan fuera antes del análisis profundo.
 
-El rendimiento principal utiliza la última ejecución primaria, no derivada, de cada fecha y una sola selección por fixture. Replays y runs derivados permanecen append-only para auditoría, pero no aumentan la muestra visible. Sin cuota prematch vinculada no se calculan ni comunican retorno, edge o rentabilidad.
+**Más de 1,5 goles** es únicamente un refuerzo visible cuando la evidencia del proveedor lo expresa junto a 1X. No se inventa una probabilidad conjunta, no se ofrece como selección independiente y no sustituye a 1X. La interfaz publica como máximo tres señales y oculta la matriz de mercados que no forma parte de esta decisión.
+
+El rendimiento estadístico utiliza únicamente selecciones 1X de la ejecución primaria de cada fecha. Replays y runs derivados permanecen append-only para auditoría y pueden representar la lectura vigente del día, pero no aumentan la muestra canónica. Sin cuota prematch 1X vinculada no se calculan ni comunican retorno, edge o rentabilidad.
