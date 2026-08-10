@@ -12,5 +12,5 @@ describe("captura controlada",()=>{
  it("no modifica el estado anterior",()=>{const hashes=Object.freeze(["abc"]);snapshotDecision(hashes,"def");expect(hashes).toEqual(["abc"])});
  it("mantiene auditoría append-only",()=>{const old=Object.freeze(["START"]);const next=appendAudit(old,"SUCCESS");expect(old).toEqual(["START"]);expect(next).toEqual(["START","SUCCESS"])});
  it("no contiene dominios fuera de alcance ni dependencia runtime",()=>{for(const path of ["src/application/capture-forebet.ts","src/infrastructure/forebet/http-client.ts","package.json","prisma/schema.prisma"]){const text=readFileSync(path,"utf8");expect(text).not.toMatch(/statarea\.com|apostala|x2-ht-lab/i)}});
- it("la UI mantiene ranking y seguimiento no disponibles",()=>{const text=readFileSync("src/app/page.tsx","utf8");expect(text).toMatch(/Ver mejores partidos/);expect(text).toMatch(/disabled/)});
+ it("la UI usa el ranking operativo sin acoplarse a Forebet",()=>{const text=readFileSync("src/app/page.tsx","utf8");expect(text).toContain("DailyRankingStatus");expect(text).not.toMatch(/forebet|capture/iu)});
 });

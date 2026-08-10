@@ -14,7 +14,7 @@ export async function OperationalPerformanceStatus() {
   });
   const canonicalRuns = selectCanonicalDailyRuns(allRuns);
   const recommendations = canonicalRuns.length === 0 ? [] : await database.dailyRecommendation.findMany({
-    where: { candidate: { runId: { in: canonicalRuns.map(({ id }) => id) } } },
+    where: { market: "1X", candidate: { runId: { in: canonicalRuns.map(({ id }) => id) } } },
     include: { marketEvaluation: true, candidate: { include: { run: true, fixture: { include: { dailyOutcomes: { orderBy: { observedAtUtc: "desc" }, take: 1 } } } } } },
     orderBy: { rank: "asc" },
   });
@@ -34,11 +34,12 @@ export async function OperationalPerformanceStatus() {
   }
   const overall = summarizePerformance(records);
   const byMarket = groupPerformance(records, "market");
-  const coverage = canonicalRuns.reduce((total, run) => ({ discovered: total.discovered + run.fixturesDiscovered, eligible: total.eligible + run.fixturesEligible, deep: total.deep + run.fixturesDeepAnalyzed, selected: total.selected + run.recommendations }), { discovered: 0, eligible: 0, deep: 0, selected: 0 });
+  const coverage = canonicalRuns.reduce((total, run) => ({ discovered: total.discovered + run.fixturesDiscovered, eligible: total.eligible + run.fixturesEligible, deep: total.deep + run.fixturesDeepAnalyzed, selected: total.selected }), { discovered: 0, eligible: 0, deep: 0, selected: 0 });
+  coverage.selected = records.length;
   const technicalRunsExcluded = allRuns.length - canonicalRuns.length;
 
   return <>
-    <section className="product-hero"><div><span className="eyebrow">Estadística sin repeticiones</span><h1>Rendimiento real</h1><p>Una ejecución principal y una selección por partido y fecha.</p></div><div className="run-status"><strong>{calibrationLabel[overall.calibrationStatus]}</strong><small>{overall.resolved} resultados resueltos</small></div></section>
+    <section className="product-hero"><div><span className="eyebrow">Estadística Intelligent 1X</span><h1>Rendimiento 1X</h1><p>Solo local o empate, una selección por partido y fecha.</p></div><div className="run-status"><strong>{calibrationLabel[overall.calibrationStatus]}</strong><small>{overall.resolved} resultados 1X resueltos</small></div></section>
 
     <section className="performance-summary">
       <article><span>Selecciones únicas</span><strong>{overall.sample}</strong><small>{overall.pending} pendientes</small></article>
@@ -51,7 +52,7 @@ export async function OperationalPerformanceStatus() {
 
     <section className="coverage-section"><div className="section-heading"><div><span className="eyebrow">Embudo de cobertura</span><h2>Qué llega realmente a decisión</h2></div><span className="section-note">{canonicalRuns.length} fechas</span></div><div className="coverage-funnel"><article><strong>{coverage.discovered}</strong><span>Encontrados</span></article><i>→</i><article><strong>{coverage.eligible}</strong><span>Elegibles</span></article><i>→</i><article><strong>{coverage.deep}</strong><span>Analizados</span></article><i>→</i><article><strong>{coverage.selected}</strong><span>Seleccionados</span></article></div></section>
 
-    <section className="market-performance"><div className="section-heading"><div><span className="eyebrow">Comparación correcta</span><h2>Resultado por mercado</h2></div></div><div className="market-performance-list">{byMarket.map(({ key, summary }) => <article key={key}><div><strong>{marketLabel(key)}</strong><small>{summary.resolved} resueltas · {summary.pending} pendientes</small></div><div><span>Acierto</span><strong>{percent(summary.hitRate)}</strong></div><div><span>Brier</span><strong>{decimal(summary.brier)}</strong></div><div><span>Cuotas</span><strong>{summary.pricedSample || "—"}</strong></div></article>)}</div>{byMarket.length === 0 && <p>Aún no hay mercados evaluables.</p>}</section>
+    <section className="market-performance"><div className="section-heading"><div><span className="eyebrow">Métrica única</span><h2>Resultado local o empate</h2></div></div><div className="market-performance-list">{byMarket.map(({ key, summary }) => <article key={key}><div><strong>{marketLabel(key)}</strong><small>{summary.resolved} resueltas · {summary.pending} pendientes</small></div><div><span>Acierto</span><strong>{percent(summary.hitRate)}</strong></div><div><span>Brier</span><strong>{decimal(summary.brier)}</strong></div><div><span>Cuotas</span><strong>{summary.pricedSample || "—"}</strong></div></article>)}</div>{byMarket.length === 0 && <p>Aún no hay selecciones 1X evaluables.</p>}</section>
 
     <details className="method-detail"><summary>Integridad de la muestra</summary><p>Se eligió la última ejecución primaria de cada fecha. Los runs derivados, replays y selecciones repetidas no se suman al rendimiento principal.</p><p>{technicalRunsExcluded} ejecuciones técnicas quedaron fuera del conteo visible. Se preservan en la base append-only para auditoría.</p><small>Calibración: menos de 30 resueltas = en construcción; 30–99 = temprana; 100 o más = validada. Sin cuota prematch no se calcula retorno.</small></details>
   </>;

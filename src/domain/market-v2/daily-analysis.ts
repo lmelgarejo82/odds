@@ -69,9 +69,16 @@ export function filterFixture(fixture: DiscoveredFixture, nowUtc: Date): Readonl
   if (fixture.providerHomeTeamId === fixture.providerAwayTeamId || normalizeName(fixture.homeName) === normalizeName(fixture.awayName)) return { eligible: false, reasonCode: "SAME_TEAM", quality: 0 };
   if (!fixture.competitionName.trim() || !Number.isSafeInteger(fixture.season)) return { eligible: false, reasonCode: "COMPETITION_INCOMPLETE", quality: 0 };
   if (!fixture.sourceTimezone.trim()) return { eligible: false, reasonCode: "TIMEZONE_INVALID", quality: 0 };
-  if (/friendly|amistoso/i.test(`${fixture.competitionName} ${fixture.round}`)) return { eligible: false, reasonCode: "FRIENDLY_EXCLUDED", quality: 0.25 };
-  const lowCoverage = /youth|u1[5-9]|women friendly|reserve/i.test(`${fixture.competitionName} ${fixture.round}`);
+  if (/friendl(?:y|ies)|amistos[oa]s?/iu.test(`${fixture.competitionName} ${fixture.round}`)) return { eligible: false, reasonCode: "FRIENDLY_EXCLUDED", quality: 0.25 };
+  if (isDevelopmentFixture(fixture)) return { eligible: false, reasonCode: "DEVELOPMENT_TEAM_EXCLUDED", quality: 0.25 };
+  const lowCoverage = /youth|women friendl(?:y|ies)|reserve/iu.test(`${fixture.competitionName} ${fixture.round}`);
   return { eligible: !lowCoverage, reasonCode: lowCoverage ? "LOW_COVERAGE_CATEGORY" : "ELIGIBLE", quality: lowCoverage ? 0.4 : 1 };
+}
+
+export function isDevelopmentFixture(fixture: Pick<DiscoveredFixture, "homeName" | "awayName" | "competitionName" | "round">): boolean {
+  const teams = `${fixture.homeName} ${fixture.awayName}`;
+  const context = `${fixture.competitionName} ${fixture.round}`;
+  return /(?:^|\s)(?:u-?(?:1[5-9]|2[01])|ii|reserves?|b)(?:\s|$)/iu.test(teams) || /\b(?:u-?(?:1[5-9]|2[01])|youth|reserves?)\b/iu.test(context);
 }
 
 export function normalizeName(value: string): string {
