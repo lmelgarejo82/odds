@@ -17,7 +17,7 @@ export const AUTOMATIC_DAILY_RANKING_POLICY = Object.freeze({
     dataQuality: 10,
   }),
   thresholds: Object.freeze({ value: 55, modelReview: 45, watch: 35 }),
-  maximumPrimary: 5,
+  maximumPrimary: 3,
   maximumValue: 3,
 });
 
@@ -203,7 +203,11 @@ export function scoreAutomaticReview(input: AutomaticScoreInput): Readonly<{
   components: readonly [number, number, number, number, number];
   risks: readonly string[];
 }> {
-  const model = Math.min(25, Math.max(0, (input.modelProbability - 0.30) / 0.50 * 25));
+  const familyBaseline = input.market === "1X" || input.market === "X2" || input.market === "12" ? 2 / 3
+    : input.market === "OVER_15" || input.market === "UNDER_15" || input.market === "OVER_25" || input.market === "UNDER_25" ? 0.5
+    : 1 / 3;
+  const familyCeiling = input.market === "1X" || input.market === "X2" || input.market === "12" ? 0.90 : 0.75;
+  const model = Math.min(25, Math.max(0, (input.modelProbability - familyBaseline) / (familyCeiling - familyBaseline) * 25));
   const history = Math.min(25, Math.max(0, input.historicalPoints ?? 0));
   const market = input.edge !== null && input.expectedValue !== null && input.edge > 0 && input.expectedValue > 0 ? Math.min(25, input.edge / 0.12 * 25) : 0;
   const context = Math.max(0, Math.min(1, input.contextualAgreement)) * 15;
@@ -219,7 +223,10 @@ export function scoreAutomaticReview(input: AutomaticScoreInput): Readonly<{
   const total = Math.max(0, Math.min(100, model + history + market + context + quality - penalty));
   const riskBlocked = input.topMargin === 0 || input.contradictory || input.dataQuality < 0.5;
   const pricedValue = input.edge !== null && input.edge >= 0.025 && input.expectedValue !== null && input.expectedValue > 0 && input.dataQuality >= 0.7 && input.topMargin >= 0.05 && !input.contradictory;
-  const modelReview = input.edge === null && input.expectedValue === null && input.modelProbability >= 0.48 && input.contextualAgreement >= 0.65 && input.dataQuality >= 0.7 && input.topMargin >= 0.05 && !input.contradictory;
+  const minimumModelProbability = input.market === "1X" || input.market === "X2" || input.market === "12" ? 0.75
+    : input.market === "OVER_15" || input.market === "UNDER_15" || input.market === "OVER_25" || input.market === "UNDER_25" ? 0.58
+    : 0.48;
+  const modelReview = input.edge === null && input.expectedValue === null && input.modelProbability >= minimumModelProbability && input.contextualAgreement >= 0.65 && input.dataQuality >= 0.7 && input.topMargin >= 0.05 && !input.contradictory;
   const category: AutomaticCategory = !riskBlocked && total >= 55 && pricedValue ? "VALUE_DETECTED" : !riskBlocked && total >= 45 && modelReview ? "MODEL_REVIEW" : !riskBlocked && total >= 35 ? "WATCH" : "PASS";
   return Object.freeze({ total, category, components: [model, history, market, context, quality] as const, risks: Object.freeze(risks) });
 }

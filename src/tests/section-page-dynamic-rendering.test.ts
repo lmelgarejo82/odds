@@ -3,128 +3,52 @@ import { join } from "node:path";
 import { renderToStaticMarkup } from "react-dom/server";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-const mocks = vi.hoisted(() => ({
-  events: [] as string[],
-  connection: vi.fn<() => Promise<void>>(),
-  notFound: vi.fn(),
-}));
-
+const mocks = vi.hoisted(() => ({ events: [] as string[], connection: vi.fn<() => Promise<void>>(), notFound: vi.fn() }));
 vi.mock("next/server", () => ({ connection: mocks.connection }));
 vi.mock("next/navigation", () => ({ notFound: mocks.notFound }));
-vi.mock("@/components/empty-state", () => ({
-  EmptyState: () => {
-    mocks.events.push("empty-state");
-    return "empty-state";
-  },
-}));
-vi.mock("@/components/historical-analysis-status", () => ({
-  HistoricalAnalysisStatus: () => {
-    mocks.events.push("historical-analysis");
-    return "historical-analysis";
-  },
-}));
-vi.mock("@/components/statarea-semantics-status", () => ({
-  StatareaSemanticsStatus: () => {
-    mocks.events.push("statarea-semantics");
-    return "statarea-semantics";
-  },
-}));
-vi.mock("@/components/market-priority-status", () => ({
-  MarketPriorityStatus: () => {
-    mocks.events.push("market-priority");
-    return "market-priority";
-  },
-}));
-vi.mock("@/components/prospective-shadow-status", () => ({
-  ProspectiveShadowStatus: () => {
-    mocks.events.push("prospective-shadow");
-    return "prospective-shadow";
-  },
-}));
-vi.mock("@/components/daily-ranking-status", () => ({ DailyRankingStatus: () => "daily-ranking" }));
-vi.mock("@/components/operational-history-status", () => ({ OperationalHistoryStatus: () => "operational-history" }));
-vi.mock("@/components/operational-performance-status", () => ({ OperationalPerformanceStatus: () => "operational-performance" }));
+vi.mock("@/components/daily-ranking-status", () => ({ DailyRankingStatus: () => { mocks.events.push("daily-ranking"); return "daily-ranking"; } }));
+vi.mock("@/components/operational-history-status", () => ({ OperationalHistoryStatus: () => { mocks.events.push("operational-history"); return "operational-history"; } }));
+vi.mock("@/components/operational-performance-status", () => ({ OperationalPerformanceStatus: () => { mocks.events.push("operational-performance"); return "operational-performance"; } }));
 
 import SectionPage, { generateStaticParams } from "@/app/[section]/page";
 
-const root = process.cwd();
-const source = (path: string) => readFileSync(join(root, path), "utf8");
-const renderSection = async (section: string) => {
-  const page = await SectionPage({ params: Promise.resolve({ section }) });
-  return renderToStaticMarkup(page);
-};
+const source = (path: string) => readFileSync(join(process.cwd(), path), "utf8");
+const renderSection = async (section: string) => renderToStaticMarkup(await SectionPage({ params: Promise.resolve({ section }) }));
 
-describe("renderizado request-time de secciones Prisma", () => {
+describe("producto operativo simplificado", () => {
   beforeEach(() => {
     mocks.events.length = 0;
     mocks.connection.mockReset();
-    mocks.connection.mockImplementation(async () => {
-      mocks.events.push("connection");
-    });
+    mocks.connection.mockImplementation(async () => { mocks.events.push("connection"); });
     mocks.notFound.mockReset();
-    mocks.notFound.mockImplementation(() => {
-      mocks.events.push("not-found");
-      throw new Error("NEXT_NOT_FOUND");
-    });
+    mocks.notFound.mockImplementation(() => { mocks.events.push("not-found"); throw new Error("NEXT_NOT_FOUND"); });
   });
 
   it.each([
-    ["analisis-historico", "historical-analysis"],
-    ["semantica-statarea", "statarea-semantics"],
-    ["sistema-prioridad", "market-priority"],
-    ["ejecucion-prospectiva", "prospective-shadow"],
-  ])("espera una petición antes de renderizar %s", async (section, componentEvent) => {
+    ["mejores-partidos", "daily-ranking"],
+    ["historial", "operational-history"],
+    ["rendimiento", "operational-performance"],
+  ])("renderiza %s con datos a request-time", async (section, componentEvent) => {
     expect(await renderSection(section)).toContain(componentEvent);
     expect(mocks.connection).toHaveBeenCalledTimes(1);
     expect(mocks.events).toEqual(["connection", componentEvent]);
   });
 
-  it("mantiene las secciones sin Prisma fuera de la frontera dinámica", async () => {
-    expect(await renderSection("fuentes")).toContain("empty-state");
+  it("elimina secciones sin funcionalidad de la superficie pública", async () => {
+    await expect(renderSection("fuentes")).rejects.toThrow("NEXT_NOT_FOUND");
     expect(mocks.connection).not.toHaveBeenCalled();
-    expect(mocks.events).toEqual(["empty-state"]);
   });
 
-  it("conserva notFound para una sección inválida", async () => {
-    await expect(renderSection("inexistente")).rejects.toThrow("NEXT_NOT_FOUND");
-    expect(mocks.connection).not.toHaveBeenCalled();
-    expect(mocks.events).toEqual(["not-found"]);
+  it("publica únicamente las tres secciones útiles", () => {
+    expect(generateStaticParams().map(({ section }) => section)).toEqual(["mejores-partidos", "historial", "rendimiento"]);
+    const navigation = source("src/components/navigation.tsx");
+    expect(navigation).not.toMatch(/Fuentes|Conciliación|Configuración asistida|Reportes/u);
   });
 
-  it("preserva generateStaticParams con todas las secciones", () => {
-    expect(generateStaticParams().map(({ section }) => section)).toEqual([
-      "fuentes",
-      "partidos",
-      "conciliacion",
-      "analisis-historico",
-      "semantica-statarea",
-      "sistema-prioridad",
-      "ejecucion-prospectiva",
-      "mejores-partidos",
-      "historial",
-      "rendimiento",
-      "seguimiento",
-      "importaciones",
-      "reportes",
-      "configuracion-asistida",
-    ]);
-  });
-
-  it("usa connection sin bypasses de caché ni APIs request-time artificiales", () => {
+  it("usa connection sin bypasses de caché", () => {
     const page = source("src/app/[section]/page.tsx");
-
     expect(page).toContain('import { connection } from "next/server";');
-    expect(page).toContain("generateStaticParams");
     expect(page).not.toContain("force-dynamic");
-    expect(page).not.toMatch(/revalidate\s*=\s*0/);
-    expect(page).not.toMatch(/unstable_noStore|cookies\s*\(|headers\s*\(/);
-  });
-
-  it("no altera la presentación explícita de horarios en Asunción", () => {
-    const prospective = source("src/components/prospective-shadow-status.tsx");
-
-    expect(prospective).toContain('new Intl.DateTimeFormat("es-PY"');
-    expect(prospective).toContain('timeZone: "America/Asuncion"');
-    expect(prospective).toContain("Horario pendiente de normalización");
+    expect(page).not.toMatch(/revalidate\s*=\s*0|unstable_noStore|cookies\s*\(|headers\s*\(/u);
   });
 });

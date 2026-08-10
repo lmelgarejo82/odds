@@ -1,18 +1,30 @@
 import { database } from "@/infrastructure/database";
 import { sportsDateInAsuncion, type DailyMarket } from "@/domain/market-v2/daily-analysis";
-import { evaluateOperationalResult, groupPerformance, summarizePerformance, type PerformanceRecord, type PerformanceSummary } from "@/domain/market-v2/operational-history";
+import { evaluateOperationalResult, groupPerformance, selectCanonicalDailyRuns, summarizePerformance, type PerformanceRecord } from "@/domain/market-v2/operational-history";
+import { marketLabel } from "@/components/market-labels";
 
-const percent = (value: number | null) => value === null ? "No disponible" : `${(value * 100).toLocaleString("es-PY", { maximumFractionDigits: 1 })} %`;
-const decimal = (value: number | null) => value === null ? "No disponible" : value.toLocaleString("es-PY", { maximumFractionDigits: 3 });
-
-function SummaryCells({ summary }: Readonly<{ summary: PerformanceSummary }>) {
-  return <><td>{summary.sample}</td><td>{summary.pending}</td><td>{summary.resolved}</td><td>{summary.hits}</td><td>{summary.misses}</td><td>{summary.void}</td><td>{percent(summary.hitRate)}</td><td>{decimal(summary.brier)}</td><td>{summary.wilsonLower95 === null ? "No disponible" : `${percent(summary.wilsonLower95)}–${percent(summary.wilsonUpper95)}`}</td><td>{summary.pricedSample}</td><td>{decimal(summary.pricedNetUnits)}</td></>;
-}
+const percent = (value: number | null) => value === null ? "—" : `${(value * 100).toLocaleString("es-PY", { maximumFractionDigits: 1 })} %`;
+const decimal = (value: number | null) => value === null ? "—" : value.toLocaleString("es-PY", { maximumFractionDigits: 3 });
+const calibrationLabel = Object.freeze({ BOOTSTRAP: "En construcción", EARLY: "Validación temprana", VALIDATED: "Validada" });
 
 export async function OperationalPerformanceStatus() {
-  const recommendations = await database.dailyRecommendation.findMany({ include: { marketEvaluation: true, candidate: { include: { run: true, fixture: { include: { dailyOutcomes: { orderBy: { observedAtUtc: "desc" }, take: 1 } } } } } } });
-  const records: PerformanceRecord[] = [];
+  const allRuns = await database.dailyAnalysisRun.findMany({
+    where: { candidates: { some: { recommendations: { some: {} } } } },
+    select: { id: true, sportsDate: true, completedAtUtc: true, derivedFromRunId: true, fixturesDiscovered: true, fixturesEligible: true, fixturesDeepAnalyzed: true, recommendations: true },
+  });
+  const canonicalRuns = selectCanonicalDailyRuns(allRuns);
+  const recommendations = canonicalRuns.length === 0 ? [] : await database.dailyRecommendation.findMany({
+    where: { candidate: { runId: { in: canonicalRuns.map(({ id }) => id) } } },
+    include: { marketEvaluation: true, candidate: { include: { run: true, fixture: { include: { dailyOutcomes: { orderBy: { observedAtUtc: "desc" }, take: 1 } } } } } },
+    orderBy: { rank: "asc" },
+  });
+  const unique = new Map<string, (typeof recommendations)[number]>();
   for (const recommendation of recommendations) {
+    const key = `${recommendation.candidate.run.sportsDate}:${recommendation.candidate.fixture.id}`;
+    if (!unique.has(key)) unique.set(key, recommendation);
+  }
+  const records: PerformanceRecord[] = [];
+  for (const recommendation of unique.values()) {
     const { run, fixture } = recommendation.candidate;
     if (sportsDateInAsuncion(fixture.kickoffAtUtc) !== run.sportsDate || run.completedAtUtc.valueOf() >= fixture.kickoffAtUtc.valueOf()) continue;
     const outcome = fixture.dailyOutcomes[0] ?? null;
@@ -20,14 +32,27 @@ export async function OperationalPerformanceStatus() {
     const frozenOdds = recommendation.marketEvaluation.bestMarketOdds === null ? null : Number(recommendation.marketEvaluation.bestMarketOdds);
     records.push({ market: recommendation.market as DailyMarket, category: recommendation.automaticCategory, probability: recommendation.marketEvaluation.modelProbability === null ? null : Number(recommendation.marketEvaluation.modelProbability), frozenOdds, validPrematchOdds: frozenOdds !== null && run.completedAtUtc.valueOf() < fixture.kickoffAtUtc.valueOf(), status });
   }
-  const overall = summarizePerformance(records), byMarket = groupPerformance(records, "market"), byCategory = groupPerformance(records, "category");
-  const table = (groups: typeof byMarket) => <div className="history-table-wrap"><table className="operation-table performance-table"><thead><tr><th>Grupo</th><th>Muestra</th><th>Pendientes</th><th>Resueltas</th><th>Aciertos</th><th>Fallos</th><th>Void</th><th>Hit rate</th><th>Brier</th><th>Wilson 95 %</th><th>Con cuota</th><th>Resultado unidades</th></tr></thead><tbody>{groups.map((group) => <tr key={group.key}><th>{group.key.replaceAll("_", " ")}</th><SummaryCells summary={group.summary} /></tr>)}</tbody></table></div>;
+  const overall = summarizePerformance(records);
+  const byMarket = groupPerformance(records, "market");
+  const coverage = canonicalRuns.reduce((total, run) => ({ discovered: total.discovered + run.fixturesDiscovered, eligible: total.eligible + run.fixturesEligible, deep: total.deep + run.fixturesDeepAnalyzed, selected: total.selected + run.recommendations }), { discovered: 0, eligible: 0, deep: 0, selected: 0 });
+  const technicalRunsExcluded = allRuns.length - canonicalRuns.length;
+
   return <>
-    <section className="daily-hero"><div><span className="eyebrow">Resultados prospectivos propios</span><h1>Rendimiento</h1><p className="subtitle">Solo predicciones congeladas antes del kickoff y outcomes terminales posteriores.</p></div><div className="daily-mode"><strong>{overall.calibrationStatus}</strong><small>estado de calibración</small></div></section>
-    <section className="metric-grid daily-metrics">{[["Muestra", overall.sample], ["Pendientes", overall.pending], ["Resueltas", overall.resolved], ["Aciertos", overall.hits], ["Fallos", overall.misses]].map(([label, value]) => <article className="metric" key={label}><span>{label}</span><strong>{value}</strong></article>)}</section>
-    <section className="panel daily-warning"><h2>Resumen general</h2><p>Hit rate {percent(overall.hitRate)} · Brier {decimal(overall.brier)} · Wilson 95 % {overall.wilsonLower95 === null ? "No disponible" : `${percent(overall.wilsonLower95)}–${percent(overall.wilsonUpper95)}`} · muestra con cuota prematch válida {overall.pricedSample} · resultado {decimal(overall.pricedNetUnits)} unidades.</p></section>
-    <section><div className="section-heading"><div><span className="eyebrow">Desglose</span><h2>Por mercado</h2></div></div>{table(byMarket)}</section>
-    <section><div className="section-heading"><div><span className="eyebrow">Desglose</span><h2>Por categoría V1</h2></div></div>{table(byCategory)}</section>
-    <section className="panel"><span className="eyebrow">Interpretación</span><h2>{overall.calibrationStatus}</h2><p>BOOTSTRAP: menos de 30 resueltas. EARLY: 30–99. VALIDATED: 100 o más. Este panel describe observaciones; no automatiza apuestas ni afirma rentabilidad.</p></section>
+    <section className="product-hero"><div><span className="eyebrow">Estadística sin repeticiones</span><h1>Rendimiento real</h1><p>Una ejecución principal y una selección por partido y fecha.</p></div><div className="run-status"><strong>{calibrationLabel[overall.calibrationStatus]}</strong><small>{overall.resolved} resultados resueltos</small></div></section>
+
+    <section className="performance-summary">
+      <article><span>Selecciones únicas</span><strong>{overall.sample}</strong><small>{overall.pending} pendientes</small></article>
+      <article><span>Aciertos observados</span><strong>{overall.hits}</strong><small>{percent(overall.hitRate)} de las resueltas</small></article>
+      <article><span>Error Brier</span><strong>{decimal(overall.brier)}</strong><small>Menor es mejor</small></article>
+      <article><span>Con cuota válida</span><strong>{overall.pricedSample}</strong><small>{overall.pricedSample === 0 ? "ROI no disponible" : `${decimal(overall.pricedNetUnits)} unidades`}</small></article>
+    </section>
+
+    <section className="insight-panel"><div><span className="eyebrow">Lectura responsable</span><h2>{overall.resolved < 30 ? "Todavía no hay muestra suficiente para confiar en el porcentaje" : "La muestra ya permite una primera evaluación"}</h2></div><p>El intervalo de acierto al 95 % es {overall.wilsonLower95 === null ? "no disponible" : `${percent(overall.wilsonLower95)}–${percent(overall.wilsonUpper95)}`}. El hit rate describe resultados; no demuestra valor ni rentabilidad, especialmente en mercados con distinta tasa base.</p></section>
+
+    <section className="coverage-section"><div className="section-heading"><div><span className="eyebrow">Embudo de cobertura</span><h2>Qué llega realmente a decisión</h2></div><span className="section-note">{canonicalRuns.length} fechas</span></div><div className="coverage-funnel"><article><strong>{coverage.discovered}</strong><span>Encontrados</span></article><i>→</i><article><strong>{coverage.eligible}</strong><span>Elegibles</span></article><i>→</i><article><strong>{coverage.deep}</strong><span>Analizados</span></article><i>→</i><article><strong>{coverage.selected}</strong><span>Seleccionados</span></article></div></section>
+
+    <section className="market-performance"><div className="section-heading"><div><span className="eyebrow">Comparación correcta</span><h2>Resultado por mercado</h2></div></div><div className="market-performance-list">{byMarket.map(({ key, summary }) => <article key={key}><div><strong>{marketLabel(key)}</strong><small>{summary.resolved} resueltas · {summary.pending} pendientes</small></div><div><span>Acierto</span><strong>{percent(summary.hitRate)}</strong></div><div><span>Brier</span><strong>{decimal(summary.brier)}</strong></div><div><span>Cuotas</span><strong>{summary.pricedSample || "—"}</strong></div></article>)}</div>{byMarket.length === 0 && <p>Aún no hay mercados evaluables.</p>}</section>
+
+    <details className="method-detail"><summary>Integridad de la muestra</summary><p>Se eligió la última ejecución primaria de cada fecha. Los runs derivados, replays y selecciones repetidas no se suman al rendimiento principal.</p><p>{technicalRunsExcluded} ejecuciones técnicas quedaron fuera del conteo visible. Se preservan en la base append-only para auditoría.</p><small>Calibración: menos de 30 resueltas = en construcción; 30–99 = temprana; 100 o más = validada. Sin cuota prematch no se calcula retorno.</small></details>
   </>;
 }

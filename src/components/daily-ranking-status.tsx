@@ -2,15 +2,28 @@ import Link from "next/link";
 import { database } from "@/infrastructure/database";
 import { DAILY_LOCALE, DAILY_TIME_ZONE, sportsDateInAsuncion, type DailyMarket } from "@/domain/market-v2/daily-analysis";
 import { calculateProspectiveCalibration, type AutomaticCategory, type CalibrationObservation } from "@/domain/market-v2/automatic-review-v1";
+import { selectCanonicalDailyRuns } from "@/domain/market-v2/operational-history";
 import { DailyMarketAnalysis } from "@/components/daily-market-analysis";
+import { marketLabel } from "@/components/market-labels";
 
 const dateTime = new Intl.DateTimeFormat(DAILY_LOCALE, { timeZone: DAILY_TIME_ZONE, dateStyle: "medium", timeStyle: "short" });
-const percent = (value: unknown) => value === null || value === undefined ? "No disponible" : `${(Number(value) * 100).toLocaleString(DAILY_LOCALE, { maximumFractionDigits: 1 })} %`;
-const decimal = (value: unknown) => value === null || value === undefined ? "No disponible" : Number(value).toLocaleString(DAILY_LOCALE, { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+const timeOnly = new Intl.DateTimeFormat(DAILY_LOCALE, { timeZone: DAILY_TIME_ZONE, hour: "2-digit", minute: "2-digit" });
+const percent = (value: unknown) => value === null || value === undefined ? "—" : `${(Number(value) * 100).toLocaleString(DAILY_LOCALE, { maximumFractionDigits: 1 })} %`;
+const decimal = (value: unknown) => value === null || value === undefined ? "—" : Number(value).toLocaleString(DAILY_LOCALE, { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 const list = (value: string): string[] => { try { const parsed: unknown = JSON.parse(value); return Array.isArray(parsed) ? parsed.map(String) : []; } catch { return []; } };
-const labels: Record<AutomaticCategory, string> = { VALUE_DETECTED: "Valor detectado", MODEL_REVIEW: "Revisión por modelo", WATCH: "Observar", PASS: "Descartar" };
 const validCategory = (value: string): AutomaticCategory => value === "VALUE_DETECTED" || value === "MODEL_REVIEW" || value === "WATCH" ? value : "PASS";
-const readableAudit: Readonly<Record<string, string>> = Object.freeze({ SIN_COTIZACION_DIRECTA: "Sin cuota directa", CALIBRATION_BOOTSTRAP: "Calibración en construcción", PENDING_REVIEW: "Pendiente de revisión", MODEL_REVIEW: "Revisión por modelo", VALUE_DETECTED: "Valor detectado", WATCH: "Observar", PASS: "Descartado" });
+const categoryLabel: Readonly<Record<AutomaticCategory, string>> = Object.freeze({ VALUE_DETECTED: "Señal con valor", MODEL_REVIEW: "Señal media", WATCH: "En observación", PASS: "Sin señal clara" });
+const readableAudit: Readonly<Record<string, string>> = Object.freeze({
+  TIED_TOP: "El modelo no separa dos resultados",
+  SMALL_MODEL_MARGIN: "La diferencia entre escenarios es pequeña",
+  CONTRADICTORY_SIGNALS: "Las señales del proveedor se contradicen",
+  SIN_COTIZACION_DIRECTA: "No hay cuota directa verificada",
+  CALIBRATION_BOOTSTRAP: "La calibración propia sigue en construcción",
+  MODEL_REVIEW: "La lectura del modelo supera el mínimo provisional",
+  VALUE_DETECTED: "Existe precio y valor provisional",
+  WATCH: "La señal requiere cautela",
+  PASS: "No alcanza la calidad mínima",
+});
 const readable = (value: string) => readableAudit[value] ?? value.replaceAll("_", " ").toLocaleLowerCase("es-PY");
 
 function marketHit(market: string, outcome: Readonly<{ result1X2: string; regulationHomeScore: number; regulationAwayScore: number }>): boolean | null {
@@ -21,18 +34,26 @@ function marketHit(market: string, outcome: Readonly<{ result1X2: string; regula
   const total = outcome.regulationHomeScore + outcome.regulationAwayScore;
   if (market === "OVER_15") return total >= 2;
   if (market === "UNDER_15") return total <= 1;
-  if (market === "OVER_25") return total > 2.5;
-  if (market === "UNDER_25") return total < 2.5;
+  if (market === "OVER_25") return total >= 3;
+  if (market === "UNDER_25") return total <= 2;
   return null;
 }
 
 export async function DailyRankingStatus() {
+  const runIdentities = await database.dailyAnalysisRun.findMany({
+    where: { candidates: { some: { recommendations: { some: {} } } } },
+    select: { id: true, sportsDate: true, completedAtUtc: true, derivedFromRunId: true },
+  });
+  const canonicalRuns = selectCanonicalDailyRuns(runIdentities);
+  const currentIdentity = canonicalRuns[0];
+  if (!currentIdentity) return <section className="empty-product"><span className="eyebrow">Análisis diario</span><h1>Todavía no hay una agenda analizada</h1><p>La primera ejecución se publicará automáticamente a las 10:30, hora de Asunción.</p></section>;
+
   const [run, prospective, capability] = await Promise.all([
-    database.dailyAnalysisRun.findFirst({ orderBy: [{ completedAtUtc: "desc" }, { id: "desc" }], include: { requestAudits: true, evidence: true, exclusions: { orderBy: { createdAtUtc: "asc" } }, candidates: { include: { fixture: { include: { homeTeam: true, awayTeam: true } }, evaluations: true, recommendations: { include: { marketEvaluation: true }, orderBy: { rank: "asc" } } } } } }),
-    database.dailyRecommendation.findMany({ include: { marketEvaluation: true, candidate: { include: { run: true, fixture: { include: { dailyOutcomes: { orderBy: { observedAtUtc: "desc" }, take: 1 } } } } } } }),
+    database.dailyAnalysisRun.findUnique({ where: { id: currentIdentity.id }, include: { requestAudits: true, evidence: true, exclusions: { orderBy: { createdAtUtc: "asc" } }, candidates: { include: { fixture: { include: { homeTeam: true, awayTeam: true } }, evaluations: true, recommendations: { include: { marketEvaluation: true }, orderBy: { rank: "asc" } } } } } }),
+    database.dailyRecommendation.findMany({ where: { candidate: { runId: { in: canonicalRuns.map(({ id }) => id) } } }, include: { marketEvaluation: true, candidate: { include: { run: true, fixture: { include: { dailyOutcomes: { orderBy: { observedAtUtc: "desc" }, take: 1 } } } } } } }),
     database.oddsSportCapability.findFirst({ where: { provider: "the-odds-api" }, orderBy: [{ lastValidatedAt: "desc" }, { id: "desc" }] }),
   ]);
-  if (!run) return <section className="panel empty-state"><span className="eyebrow">Revisión automática D+1</span><h1>Selecciones automáticas para revisión</h1><p>Aún no existe una ejecución publicada.</p></section>;
+  if (!run) throw new Error("DAILY_CANONICAL_RUN_NOT_FOUND");
 
   const observations: CalibrationObservation[] = [];
   for (const recommendation of prospective) {
@@ -43,40 +64,52 @@ export async function DailyRankingStatus() {
   }
   const calibration = calculateProspectiveCalibration(observations);
   const localCandidates = run.candidates.filter((candidate) => sportsDateInAsuncion(candidate.fixture.kickoffAtUtc) === run.sportsDate);
-  const wrongLocalDateFixtures = run.candidates.length - localCandidates.length;
   const entries = localCandidates.flatMap((candidate) => candidate.recommendations.map((recommendation) => ({ candidate, recommendation, category: validCategory(recommendation.automaticCategory) })));
-  const ordered = [...entries].sort((a, b) => {
-    const priority: Record<AutomaticCategory, number> = { VALUE_DETECTED: 0, MODEL_REVIEW: 1, WATCH: 2, PASS: 3 };
-    return priority[a.category] - priority[b.category] || Number(b.recommendation.scoreTotal) - Number(a.recommendation.scoreTotal) || Number(b.recommendation.marketEvaluation.edge ?? -Infinity) - Number(a.recommendation.marketEvaluation.edge ?? -Infinity) || a.candidate.fixture.kickoffAtUtc.valueOf() - b.candidate.fixture.kickoffAtUtc.valueOf();
-  });
-  const primary = ordered.filter((x) => x.category !== "PASS").slice(0, 5);
-  const primaryIds = new Set(primary.map((entry) => entry.recommendation.id));
-  const remaining = ordered.filter((entry) => !primaryIds.has(entry.recommendation.id));
+  const priority: Record<AutomaticCategory, number> = { VALUE_DETECTED: 0, MODEL_REVIEW: 1, WATCH: 2, PASS: 3 };
+  const ordered = [...entries].sort((a, b) => priority[a.category] - priority[b.category] || Number(b.recommendation.scoreTotal) - Number(a.recommendation.scoreTotal) || a.candidate.fixture.kickoffAtUtc.valueOf() - b.candidate.fixture.kickoffAtUtc.valueOf());
+  const primary = ordered.filter(({ category }) => category !== "PASS").slice(0, 3);
+  const primaryIds = new Set(primary.map(({ recommendation }) => recommendation.id));
+  const remaining = ordered.filter(({ recommendation }) => !primaryIds.has(recommendation.id));
   const providerValidationError = [...run.requestAudits].reverse().find((audit) => audit.providerId === "provider-the-odds-api" && audit.sanitizedErrorCode);
-  const oddsMessage = run.usableOddsAvailable ? "Análisis con cuotas reales" : "Análisis de modelo disponible";
-
-  const cards = (values: typeof entries) => values.map(({ candidate, recommendation, category }, index) => {
-    const evaluation = recommendation.marketEvaluation;
-    const pricedEvaluation = recommendation.bestPricedMarket ? candidate.evaluations.find((item) => item.market === recommendation.bestPricedMarket) : evaluation.bestMarketOdds !== null ? evaluation : null;
-    const reasons = list(recommendation.explanationJson), risks = list(recommendation.risksJson);
-    const directQuote = pricedEvaluation?.bestMarketOdds !== null && pricedEvaluation?.bestMarketOdds !== undefined;
-    return <article className="daily-card" key={recommendation.id}>
-      <div className="daily-rank">#{index + 1}</div>
-      <div className="daily-match"><span className="daily-country">{candidate.fixture.country}</span><span className="daily-competition">{candidate.fixture.competitionName}</span><h2><span className="team-name">{candidate.fixture.homeTeam.displayName}</span><i>vs.</i><span className="team-name">{candidate.fixture.awayTeam.displayName}</span></h2><small className="daily-kickoff">{dateTime.format(candidate.fixture.kickoffAtUtc)} · hora de Asunción</small></div>
-      <div className="daily-market"><span>Señal</span><strong>{labels[category]}</strong><span>Mercado sugerido</span><strong>{recommendation.market}</strong><small>{directQuote ? `Cuota real ${decimal(pricedEvaluation?.bestMarketOdds)}` : "Sin cuota directa"}</small></div>
-      <dl className="daily-numbers"><div><dt>Probabilidad</dt><dd>{percent(evaluation.modelProbability)}</dd></div><div><dt>Cuota justa</dt><dd>{decimal(evaluation.fairOdds)}</dd></div><div><dt>Edge</dt><dd>{directQuote ? percent(pricedEvaluation?.edge) : "—"}</dd></div><div><dt>EV</dt><dd>{directQuote ? percent(pricedEvaluation?.expectedValue) : "—"}</dd></div></dl>
-      <div className="daily-score"><strong>{Number(recommendation.scoreTotal).toFixed(1)}</strong><span>puntuación</span><small>Revisión manual</small></div>
-      <details className="daily-card-audit"><summary>Ver análisis completo</summary><DailyMarketAnalysis evaluations={candidate.evaluations} discarded={category === "PASS"} /><div className="daily-detail"><p><b>Razones:</b> {reasons.length ? reasons.map(readable).join(" · ") : "Revisión automática explicable"}</p><p><b>Riesgos:</b> {risks.length ? risks.map(readable).join(" · ") : "No disponible"}</p><p><b>Histórico propio:</b> muestra {calibration.sample} · {calibration.status === "BOOTSTRAP" ? "Calibración en construcción" : calibration.status}</p><small className="audit-code">Estado congelado: {recommendation.reviewStatus}</small></div></details>
-    </article>;
-  });
 
   return <>
-    <section className="daily-hero"><div><span className="eyebrow">Agenda analizada · decisión manual</span><h1>Mejores partidos del día</h1><p className="subtitle">Fecha deportiva {run.sportsDate} · {DAILY_TIME_ZONE}</p><p>Hasta diez partidos analizados. Las cuotas enriquecen la señal, pero no limitan el análisis.</p></div><div className="daily-mode"><strong>USABLE V1</strong><small>Actualizado · {dateTime.format(run.completedAtUtc)}</small></div></section>
-    <section className="metric-grid daily-metrics">{[["Descubiertos", run.fixturesDiscovered], ["Elegibles", run.fixturesEligible], ["Analizados", run.fixturesDeepAnalyzed], ["Destacados", primary.length], ["Cuotas útiles", run.usableOddsCount]].map(([label, value]) => <article className="metric" key={label}><span>{label}</span><strong>{value}</strong></article>)}</section>
-    <section className="panel daily-availability"><span className="eyebrow">Estado de hoy</span><h2>{oddsMessage}</h2><p>{run.fixturesDeepAnalyzed} partidos tienen análisis profundo. {run.usableOddsAvailable ? "Las señales con precio muestran edge y EV." : "Las señales sin precio se muestran como análisis de modelo, sin afirmar valor."}</p><p className="route-links"><Link href={`/historial?date=${run.sportsDate}`}>Ver historial</Link><Link href="/rendimiento">Ver rendimiento</Link></p><details className="daily-audit"><summary>Ver estado técnico</summary><p>Matcher {run.matcherVersion ?? "odds-matching/automatic-v1"} · eventos de cuotas {run.oddsEventsReceived} · fixtures vinculados {run.oddsFixturesMatched} · mercados cotizados {run.oddsMarketsMatched} · calibración {calibration.status} · fuera de fecha local {wrongLocalDateFixtures}.</p><small className="audit-code">Provider error {capability?.lastProviderErrorCode ?? providerValidationError?.sanitizedErrorCode ?? "NONE"} · sport key {capability?.sportKey ?? "NONE"} · catálogo {capability ? capability.catalogActive ? "activo" : "inactivo" : "no disponible"} · evidencia {capability?.evidenceReference ?? "NONE"}</small></details></section>
-    {primary.length === 0 ? <section className="panel daily-warning"><span className="eyebrow">Destacados</span><h2>Sin recomendaciones publicables para esta fecha</h2><p>Los partidos analizados permanecen en observación o sin señal suficiente.</p></section> : <section><div className="section-heading"><div><span className="eyebrow">Máximo cinco</span><h2>Partidos destacados</h2></div></div><div className="daily-list">{cards(primary)}</div></section>}
-    {remaining.length > 0 && <section className="daily-secondary"><div className="section-heading"><div><span className="eyebrow">Análisis restante</span><h2>Otros partidos analizados</h2></div><span className="date">{remaining.length} partidos</span></div><div className="daily-compact-list">{remaining.map(({ candidate, recommendation, category }) => <article className="daily-compact-row" key={recommendation.id}><div><strong>{candidate.fixture.homeTeam.displayName} — {candidate.fixture.awayTeam.displayName}</strong><small>{candidate.fixture.competitionName} · {dateTime.format(candidate.fixture.kickoffAtUtc)}</small></div><div><span>Mercado</span><strong>{recommendation.market}</strong></div><div><span>Modelo</span><strong>{percent(recommendation.marketEvaluation.modelProbability)}</strong></div><div><span>Estado</span><strong>{labels[category]}</strong></div></article>)}</div></section>}
-    <details className="panel daily-methodology"><summary>Metodología y calibración</summary><p>Muestra propia {calibration.sample} · aciertos {calibration.hits} · fallos {calibration.misses} · hit rate {percent(calibration.hitRate)} · Brier {decimal(calibration.brier)}.</p><p>La calibración sigue {calibration.status === "BOOTSTRAP" ? "en construcción" : calibration.status}. No hay apuestas automáticas ni garantías de resultado. Edge y EV solo aparecen con una cuota real vinculada.</p><small>Scoring {run.scoringPolicyVersion} · selección {run.selectionPolicyVersion} · FULL, STRONG e INTERESTING deshabilitados sin calibración suficiente.</small></details>
-    {run.exclusions.length > 0 && <details className="panel daily-exclusions"><summary>No elegibles ({run.exclusions.length})</summary>{run.exclusions.map((exclusion) => <p key={exclusion.id}><strong>{exclusion.fixtureLabel}</strong> · {exclusion.reasonCode.replaceAll("_", " ")}</p>)}</details>}
+    <section className="product-hero">
+      <div><span className="eyebrow">Agenda de hoy · {DAILY_TIME_ZONE}</span><h1>Qué mirar hoy</h1><p>{run.sportsDate} · Análisis actualizado a las {timeOnly.format(run.completedAtUtc)}</p></div>
+      <div className="run-status"><span className="status-dot" />Automático · 10:30<small>Próximo análisis diario</small></div>
+    </section>
+
+    <section className="today-summary" aria-label="Resumen del análisis">
+      <article><span>Partidos encontrados</span><strong>{run.fixturesDiscovered}</strong></article>
+      <article><span>Análisis profundo</span><strong>{run.fixturesDeepAnalyzed}</strong></article>
+      <article><span>Señales claras</span><strong>{primary.length}</strong></article>
+      <article><span>Con cuota verificada</span><strong>{run.usableOddsCount}</strong></article>
+    </section>
+
+    <section className={`signal-banner ${run.usableOddsAvailable ? "has-price" : "model-only"}`}>
+      <div><span className="eyebrow">Lectura rápida</span><h2>{run.usableOddsAvailable ? "Hay señales con precio verificable" : "Hoy solo hay lectura de modelo"}</h2></div>
+      <p>{run.usableOddsAvailable ? "El valor y el EV aparecen únicamente donde la cuota fue vinculada al mismo partido." : "Sin una cuota directa no afirmamos valor ni rentabilidad. La recomendación sirve para priorizar qué revisar."}</p>
+    </section>
+
+    {primary.length === 0 ? <section className="empty-product compact"><span className="eyebrow">Resultado de hoy</span><h2>Sin una señal suficientemente clara</h2><p>El sistema analizó {run.fixturesDeepAnalyzed} partidos, pero ninguno separó los escenarios con la calidad mínima. Es una abstención útil, no un error.</p></section> : <section className="featured-section"><div className="section-heading"><div><span className="eyebrow">Prioridad de revisión</span><h2>Las {primary.length} señales más claras</h2></div><span className="section-note">Máximo tres</span></div><div className="signal-list">{primary.map(({ candidate, recommendation, category }, index) => {
+      const evaluation = recommendation.marketEvaluation;
+      const pricedEvaluation = recommendation.bestPricedMarket ? candidate.evaluations.find((item) => item.market === recommendation.bestPricedMarket) : evaluation.bestMarketOdds !== null ? evaluation : null;
+      const directQuote = pricedEvaluation?.bestMarketOdds !== null && pricedEvaluation?.bestMarketOdds !== undefined;
+      const reasons = list(recommendation.explanationJson).map(readable).filter((value) => !/revisión automática explicable/iu.test(value));
+      const risks = list(recommendation.risksJson).map(readable);
+      return <article className="signal-card" key={recommendation.id}>
+        <div className="signal-rank">{String(index + 1).padStart(2, "0")}</div>
+        <div className="match-context"><span>{candidate.fixture.country} · {candidate.fixture.competitionName}</span><h3>{candidate.fixture.homeTeam.displayName}<i>vs</i>{candidate.fixture.awayTeam.displayName}</h3><time dateTime={candidate.fixture.kickoffAtUtc.toISOString()}>{dateTime.format(candidate.fixture.kickoffAtUtc)}</time></div>
+        <div className="decision-block"><span className={`quality-pill quality-${category.toLowerCase()}`}>{categoryLabel[category]}</span><small>Lectura sugerida</small><strong>{marketLabel(recommendation.market)}</strong></div>
+        <div className="signal-facts"><div><span>Modelo</span><strong>{percent(evaluation.modelProbability)}</strong></div><div><span>Cuota real</span><strong>{directQuote ? decimal(pricedEvaluation?.bestMarketOdds) : "No disponible"}</strong></div><div><span>Valor esperado</span><strong>{directQuote ? percent(pricedEvaluation?.expectedValue) : "No calculable"}</strong></div></div>
+        <div className="plain-explanation"><p><b>Por qué:</b> {reasons[0] ?? "Señal provisional consistente"}</p><p><b>Atención:</b> {risks[0] ?? "Muestra propia todavía limitada"}</p></div>
+        <details className="technical-detail"><summary>Ver análisis y riesgos</summary><DailyMarketAnalysis evaluations={candidate.evaluations} discarded={false} /><p>Razones: {reasons.length ? reasons.join(" · ") : "Señal provisional consistente"}</p><p>Riesgos: {risks.length ? risks.join(" · ") : "Muestra propia todavía limitada"}</p></details>
+      </article>;
+    })}</div></section>}
+
+    {remaining.length > 0 && <details className="secondary-analysis"><summary>Otros {remaining.length} partidos analizados</summary><div className="compact-match-list">{remaining.map(({ candidate, recommendation, category }) => <article key={recommendation.id}><div><strong>{candidate.fixture.homeTeam.displayName} — {candidate.fixture.awayTeam.displayName}</strong><small>{candidate.fixture.competitionName} · {dateTime.format(candidate.fixture.kickoffAtUtc)}</small></div><div><span>{marketLabel(recommendation.market)}</span><strong>{categoryLabel[category]}</strong></div></article>)}</div></details>}
+
+    <section className="product-links"><Link href={`/historial?date=${run.sportsDate}`}><span>Revisar resultados</span><strong>Historial →</strong></Link><Link href="/rendimiento"><span>Ver si el modelo mejora</span><strong>Rendimiento →</strong></Link></section>
+
+    <details className="method-detail"><summary>Cómo interpretar estas señales</summary><p>La muestra canónica contiene {calibration.sample} selecciones resueltas, sin contar replays ni ejecuciones derivadas. Estado: {calibration.status === "BOOTSTRAP" ? "calibración en construcción" : calibration.status}. Brier {decimal(calibration.brier)}.</p><p>No hay apuestas automáticas ni garantías de resultado. Una probabilidad del modelo no equivale a una probabilidad calibrada. Edge y EV solo aparecen con cuota real vinculada.</p><small>Políticas {run.scoringPolicyVersion} · {run.selectionPolicyVersion} · error de cuotas {capability?.lastProviderErrorCode ?? providerValidationError?.sanitizedErrorCode ?? "ninguno"}.</small></details>
   </>;
 }

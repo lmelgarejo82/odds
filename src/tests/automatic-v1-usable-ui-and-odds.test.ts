@@ -68,14 +68,14 @@ describe("ETAPA 20C: UI usable y adquisición de odds", () => {
     expect(marketDisplayState(evaluations[0])).toBe("MODELO_SOLAMENTE");
   });
 
-  it("define layout estructural usable para 320, 768 y 1280 sin overflow de tarjeta", async () => {
+  it("define una jerarquía usable para escritorio y móvil sin puntuación opaca", async () => {
     const [css, ui, runtime, evidenceContract] = await Promise.all([readFile("src/app/daily.css", "utf8"), readFile("src/components/daily-ranking-status.tsx", "utf8"), readFile("src/infrastructure/market-v2/daily/runtime.ts", "utf8"), readFile("src/application/market-v2/capture/raw-evidence-store.ts", "utf8")]);
-    expect(css).toContain("minmax(260px,2fr)"); expect(css).toContain("minmax(150px,1fr)"); expect(css).toContain("minmax(110px,1fr)"); expect(css).toContain("minmax(100px,.55fr)");
-    expect(css).toContain("align-items:start"); expect(css).toContain("min-width:0"); expect(css).toContain("overflow:hidden"); expect(css).toContain("@media(max-width:900px)"); expect(css).toContain("@media(max-width:560px)"); expect(css).toContain('grid-template-areas:"rank" "match" "market" "metrics" "score" "audit"');
-    expect(css).toContain("-webkit-line-clamp:3"); expect(css).toContain("overflow-wrap:anywhere");
-    expect(ui).toContain("team-name"); expect(ui).toContain("Revisión manual"); expect(ui).toContain("Metodología y calibración"); expect(ui).toContain("Sin cuota directa"); expect(ui).toContain("Otros partidos analizados");
+    expect(css).toContain("minmax(250px,1.45fr)"); expect(css).toContain("grid-template-areas"); expect(css).toContain("signal-facts");
+    expect(css).toContain("@media(max-width:850px)"); expect(css).toContain("@media(max-width:520px)"); expect(css).toContain('grid-template-areas:"rank" "match" "decision" "facts" "explanation" "detail"');
+    expect(css).toContain("overflow-wrap:anywhere");
+    expect(ui).toContain("Qué mirar hoy"); expect(ui).toContain("Señal media"); expect(ui).toContain("Cómo interpretar estas señales"); expect(ui).toContain("No hay cuota directa verificada"); expect(ui).toContain("partidos analizados"); expect(ui).not.toContain("puntuación");
     for (const label of ["Club Deportivo Independiente del Valle Femenino", "UEFA Champions League Women Qualification", "Academia Internacional de Fútbol U20"]) {
-      const sample = renderToStaticMarkup(createElement("strong", { className: "team-name" }, label));
+      const sample = renderToStaticMarkup(createElement("strong", { className: "match-context" }, label));
       expect(sample).toContain(label);
     }
     expect(runtime).toContain("client.bySport(request)"); expect(runtime).not.toContain("client.upcoming()"); expect(runtime).not.toMatch(/setInterval|polling/iu); expect(evidenceContract).toContain('"odds-by-sport"');
