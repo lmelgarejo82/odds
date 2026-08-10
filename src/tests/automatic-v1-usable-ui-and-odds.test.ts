@@ -71,9 +71,9 @@ describe("ETAPA 20C: UI usable y adquisición de odds", () => {
   it("define layout estructural usable para 320, 768 y 1280 sin overflow de tarjeta", async () => {
     const [css, ui, runtime, evidenceContract] = await Promise.all([readFile("src/app/daily.css", "utf8"), readFile("src/components/daily-ranking-status.tsx", "utf8"), readFile("src/infrastructure/market-v2/daily/runtime.ts", "utf8"), readFile("src/application/market-v2/capture/raw-evidence-store.ts", "utf8")]);
     expect(css).toContain("minmax(260px,2fr)"); expect(css).toContain("minmax(150px,1fr)"); expect(css).toContain("minmax(110px,1fr)"); expect(css).toContain("minmax(100px,.55fr)");
-    expect(css).toContain("align-items:start"); expect(css).toContain("min-width:0"); expect(css).toContain("overflow:hidden"); expect(css).toContain("@media(max-width:900px)"); expect(css).toContain("@media(max-width:560px)"); expect(css).toContain('grid-template-areas:"rank" "match" "market" "metrics" "score" "analysis" "detail"');
+    expect(css).toContain("align-items:start"); expect(css).toContain("min-width:0"); expect(css).toContain("overflow:hidden"); expect(css).toContain("@media(max-width:900px)"); expect(css).toContain("@media(max-width:560px)"); expect(css).toContain('grid-template-areas:"rank" "match" "market" "metrics" "score" "audit"');
     expect(css).toContain("-webkit-line-clamp:3"); expect(css).toContain("overflow-wrap:anywhere");
-    expect(ui).toContain("team-name"); expect(ui).toContain("Pendiente de revisión"); expect(ui).toContain("Calibración en construcción"); expect(ui).toContain("Sin cuota directa");
+    expect(ui).toContain("team-name"); expect(ui).toContain("Revisión manual"); expect(ui).toContain("Metodología y calibración"); expect(ui).toContain("Sin cuota directa"); expect(ui).toContain("Otros partidos analizados");
     for (const label of ["Club Deportivo Independiente del Valle Femenino", "UEFA Champions League Women Qualification", "Academia Internacional de Fútbol U20"]) {
       const sample = renderToStaticMarkup(createElement("strong", { className: "team-name" }, label));
       expect(sample).toContain(label);

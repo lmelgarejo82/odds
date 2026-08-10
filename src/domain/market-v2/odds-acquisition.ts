@@ -8,6 +8,11 @@ export const ODDS_ACQUISITION_POLICY = Object.freeze({
   polling: false,
 });
 
+export const DEEP_ANALYSIS_SELECTION_POLICY = Object.freeze({
+  version: "deep-analysis/usable-v1",
+  oddsCoverageRole: "QUALITY_TIE_BREAKER",
+});
+
 export type OddsCapabilityView = Readonly<{ sportKey: string; catalogActive: boolean; h2hStatus: "UNKNOWN" | "SUPPORTED" | "UNSUPPORTED" | "TEMPORARILY_EMPTY"; totalsStatus: "UNKNOWN" | "SUPPORTED" | "UNSUPPORTED" | "TEMPORARILY_EMPTY" }>;
 
 type CoverageRule = Readonly<{
@@ -93,14 +98,30 @@ export function selectOddsAcquisition(fixtures: readonly DiscoveredFixture[], ca
   return Object.freeze({ requests: Object.freeze(requests), diagnostics: Object.freeze(diagnostics), requestBudget: ODDS_ACQUISITION_POLICY.maximumRequestsPerRun });
 }
 
-export function prioritizeDeepFixtures<T extends Readonly<{ fixture: DiscoveredFixture; filter: Readonly<{ quality: number }> }>>(values: readonly T[], capabilities: readonly OddsCapabilityView[], maximum: number): Readonly<{ selected: readonly T[]; reasons: ReadonlyMap<string, "ODDS_COVERAGE_PRIORITY" | "MODEL_ONLY_RESERVED_SLOT" | "NO_VALIDATED_SPORT_KEY"> }> {
+export type DeepAnalysisSelectionReason =
+  | "ODDS_COVERAGE_PRIORITY"
+  | "MODEL_ANALYSIS_PRIORITY"
+  | "DEEP_ANALYSIS_BUDGET_EXCEEDED";
+
+export function prioritizeDeepFixtures<T extends Readonly<{ fixture: DiscoveredFixture; filter: Readonly<{ quality: number }> }>>(values: readonly T[], capabilities: readonly OddsCapabilityView[], maximum: number): Readonly<{ selected: readonly T[]; reasons: ReadonlyMap<string, DeepAnalysisSelectionReason> }> {
   const byKey = new Map(capabilities.map((item) => [item.sportKey, item]));
-  const ordered = [...values].sort((left, right) => right.filter.quality - left.filter.quality || left.fixture.kickoffAtUtc.localeCompare(right.fixture.kickoffAtUtc) || left.fixture.providerFixtureId.localeCompare(right.fixture.providerFixtureId));
-  const covered = ordered.filter(({ fixture }) => { const key = resolveOddsSportKey(fixture); const capability = key ? byKey.get(key) : null; return Boolean(capability?.catalogActive && capability.h2hStatus === "SUPPORTED"); }).slice(0, Math.min(8, maximum));
-  const selectedIds = new Set(covered.map(({ fixture }) => fixture.providerFixtureId));
-  const modelOnly = ordered.filter(({ fixture }) => !selectedIds.has(fixture.providerFixtureId)).slice(0, Math.min(2, Math.max(0, maximum - covered.length)));
-  const modelIds = new Set(modelOnly.map(({ fixture }) => fixture.providerFixtureId));
-  const reasons = new Map<string, "ODDS_COVERAGE_PRIORITY" | "MODEL_ONLY_RESERVED_SLOT" | "NO_VALIDATED_SPORT_KEY">();
-  for (const { fixture } of values) reasons.set(fixture.providerFixtureId, selectedIds.has(fixture.providerFixtureId) ? "ODDS_COVERAGE_PRIORITY" : modelIds.has(fixture.providerFixtureId) ? "MODEL_ONLY_RESERVED_SLOT" : "NO_VALIDATED_SPORT_KEY");
-  return Object.freeze({ selected: Object.freeze([...covered, ...modelOnly]), reasons });
+  const hasValidatedOdds = ({ fixture }: T): boolean => {
+    const key = resolveOddsSportKey(fixture);
+    const capability = key ? byKey.get(key) : null;
+    return Boolean(capability?.catalogActive && capability.h2hStatus === "SUPPORTED");
+  };
+  const ordered = [...values].sort((left, right) =>
+    right.filter.quality - left.filter.quality ||
+    Number(hasValidatedOdds(right)) - Number(hasValidatedOdds(left)) ||
+    left.fixture.kickoffAtUtc.localeCompare(right.fixture.kickoffAtUtc) ||
+    left.fixture.providerFixtureId.localeCompare(right.fixture.providerFixtureId),
+  );
+  const selected = ordered.slice(0, Math.max(0, maximum));
+  const selectedIds = new Set(selected.map(({ fixture }) => fixture.providerFixtureId));
+  const reasons = new Map<string, DeepAnalysisSelectionReason>();
+  for (const value of values) {
+    const id = value.fixture.providerFixtureId;
+    reasons.set(id, !selectedIds.has(id) ? "DEEP_ANALYSIS_BUDGET_EXCEEDED" : hasValidatedOdds(value) ? "ODDS_COVERAGE_PRIORITY" : "MODEL_ANALYSIS_PRIORITY");
+  }
+  return Object.freeze({ selected: Object.freeze(selected), reasons });
 }

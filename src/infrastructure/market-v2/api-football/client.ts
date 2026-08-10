@@ -127,7 +127,7 @@ export type ApiFootballClock = Readonly<{ nowUtc(): string }>;
 
 export type ApiFootballFixturesByDateQuery = Readonly<{
   date: string;
-  timezone: "UTC";
+  timezone: "UTC" | "America/Asuncion";
 }>;
 
 export type ApiFootballFixturesByCompetitionWindowQuery = Readonly<{
@@ -206,7 +206,7 @@ function buildFixturesTarget(query: unknown): RequestTargetResult {
     if (
       !hasExactKeys(query, ["date", "timezone"]) ||
       !isValidUtcDate(query.date) ||
-      query.timezone !== "UTC"
+      (query.timezone !== "UTC" && query.timezone !== "America/Asuncion")
     ) {
       return clientFailure({
         classification: "INVALID_REQUEST",
@@ -216,7 +216,7 @@ function buildFixturesTarget(query: unknown): RequestTargetResult {
       });
     }
     const url = new URL("/fixtures", API_FOOTBALL_BASE_URL);
-    url.search = new URLSearchParams({ date: query.date, timezone: "UTC" }).toString();
+    url.search = new URLSearchParams({ date: query.date, timezone: query.timezone }).toString();
     return Object.freeze({
       ok: true,
       target: Object.freeze({ endpointKey: "fixtures-by-date", url }),

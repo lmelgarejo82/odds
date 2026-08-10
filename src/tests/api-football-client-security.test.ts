@@ -242,6 +242,14 @@ describe("API-Football preregistered routes", () => {
     );
   });
 
+  it("builds the local sports-date route for America/Asuncion", async () => {
+    const recorded = successfulFixtureFetch();
+    await client(recorded.fetchImpl).listFixtures({ date: "2030-01-01", timezone: "America/Asuncion" });
+    expect(String(recorded.calls[0]?.input)).toBe(
+      `${API_FOOTBALL_BASE_URL}/fixtures?date=2030-01-01&timezone=America%2FAsuncion`,
+    );
+  });
+
   it("builds the competition, season, and window fixture route", async () => {
     const recorded = successfulFixtureFetch();
     await client(recorded.fetchImpl).listFixtures({
@@ -269,7 +277,7 @@ describe("API-Football preregistered routes", () => {
     expect(recorded.calls).toHaveLength(0);
   });
 
-  it("rejects a timezone other than UTC", async () => {
+  it("rejects a timezone outside the fixed allowlist", async () => {
     const recorded = successfulFixtureFetch();
     const result = await client(recorded.fetchImpl).listFixtures({
       date: "2030-01-01",
