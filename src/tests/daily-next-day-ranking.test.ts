@@ -1,13 +1,16 @@
 import { readFile } from "node:fs/promises";
 import { describe, expect, it, vi } from "vitest";
-import { DAILY_SCORING_POLICY, deterministicFixtureMatch, evaluateMarkets, filterFixture, noVig, rankDeterministically, scoreEvaluation, sportsDateD1, type DiscoveredFixture } from "@/domain/market-v2/daily-analysis";
+import { DAILY_SCORING_POLICY, deterministicFixtureMatch, evaluateMarkets, filterFixture, noVig, rankDeterministically, scoreEvaluation, sportsDateToday, type DiscoveredFixture } from "@/domain/market-v2/daily-analysis";
 import { DailyRuntimeError, parseDailyArguments, runDaily } from "@/infrastructure/market-v2/daily/runtime";
 import { TheOddsApiClient } from "@/infrastructure/market-v2/the-odds-api/client";
 
 const fixture: DiscoveredFixture = { providerFixtureId:"1",providerCompetitionId:"2",providerHomeTeamId:"3",providerAwayTeamId:"4",sportsDate:"2026-08-04",kickoffAtUtc:"2026-08-04T18:00:00.000Z",sourceTimezone:"UTC",status:"NS",season:2026,round:"Regular Season - 1",competitionName:"Primera División",country:"Paraguay",homeName:"Club Olimpia",awayName:"Cerro Porteño" };
 
-describe("motor diario D+1", () => {
-  it("calcula D+1 en America/Asuncion incluso cerca del límite UTC", () => expect(sportsDateD1(new Date("2026-08-04T02:30:00.000Z"))).toBe("2026-08-04"));
+describe("motor diario D0", () => {
+  it("calcula el día local actual en America/Asuncion", () => {
+    expect(sportsDateToday(new Date("2026-08-04T15:00:00.000Z"))).toBe("2026-08-04");
+    expect(sportsDateToday(new Date("2026-08-04T02:30:00.000Z"))).toBe("2026-08-03");
+  });
   it("exige modo de ejecución y presupuestos relacionados", () => {
     expect(() => parseDailyArguments(["--database-url","file:/tmp/x","--evidence-root","/tmp/e","--max-fixtures","10","--deep-candidates","4","--top","2","--dry-run"], new Date("2026-08-03T12:00:00Z"))).not.toThrow();
     expect(() => parseDailyArguments(["--database-url","file:/tmp/x","--evidence-root","/tmp/e","--max-fixtures","2","--deep-candidates","4","--top","2","--dry-run"])).toThrowError("BUDGET_RELATION_INVALID");
@@ -16,7 +19,7 @@ describe("motor diario D+1", () => {
     expect(filterFixture(fixture,new Date("2026-08-03T12:00:00Z")).eligible).toBe(true);
     expect(filterFixture({...fixture,status:"FT"},new Date("2026-08-03T12:00:00Z")).reasonCode).toBe("STATUS_NOT_NS");
     expect(filterFixture({...fixture,competitionName:"International Friendly"},new Date("2026-08-03T12:00:00Z")).reasonCode).toBe("FRIENDLY_EXCLUDED");
-    expect(filterFixture(fixture,new Date("2026-08-04T19:00:00Z")).reasonCode).toBe("KICKOFF_NOT_FUTURE");
+    expect(filterFixture(fixture,new Date("2026-08-04T17:00:00Z")).reasonCode).toBe("KICKOFF_TOO_CLOSE");
   });
   it("hace binding determinista sin fuzzy silencioso", () => {
     expect(deterministicFixtureMatch(fixture,{homeName:"Olimpia",awayName:"Cerro Porteno",kickoffAtUtc:"2026-08-04T18:10:00Z"})).toBe(true);
@@ -48,6 +51,6 @@ describe("motor diario D+1", () => {
   it("mantiene política versionada 25/25/25/15/10", () => expect(Object.values(DAILY_SCORING_POLICY.weights).reduce((a,b)=>a+b,0)).toBe(100));
   it("publica ruta dinámica es-PY y no expone escritura ni apuestas", async () => {
     const [page,component,schema,migration,script,service,timer,runtime]=await Promise.all([readFile("src/app/[section]/page.tsx","utf8"),readFile("src/components/daily-ranking-status.tsx","utf8"),readFile("prisma/schema.prisma","utf8"),readFile("prisma/migrations/20260803190000_add_daily_next_day_ranking/migration.sql","utf8"),readFile("scripts/market-v2-daily.ts","utf8"),readFile("deploy/systemd/odds-market-v2-daily.service","utf8"),readFile("deploy/systemd/odds-market-v2-daily.timer","utf8"),readFile("src/infrastructure/market-v2/daily/runtime.ts","utf8")]);
-    expect(page).toContain('"mejores-partidos"'); expect(page).toContain("await connection()"); expect(component).toContain("Revisión manual"); expect(component).toContain("Sin cuota directa"); expect(component).toContain("Otros partidos analizados"); expect(component).not.toMatch(/process\.env|API_FOOTBALL_KEY|THE_ODDS_API_KEY/); for(const model of ["DailyAnalysisRun","DailyFixtureCandidate","DailyMarketEvaluation","DailyRecommendation","DailyExclusion"]) expect(schema).toContain(`model ${model}`); expect(migration).toContain("DailyRecommendation_no_update"); expect(script).toContain('["AUTOMATED_BETTING",false]'); expect(service).toContain("/usr/bin/flock --nonblock"); expect(service).toContain("providers.env"); expect(service).not.toContain("web.env"); expect(timer).toContain("15:30:00 America/Asuncion"); expect(timer).toContain("Persistent=true"); expect(runtime.match(/\.listFixtures\(/gu)).toHaveLength(1); expect(runtime).toContain("timezone: DAILY_FIXTURE_DISCOVERY_POLICY.timezone"); expect(runtime.indexOf("publish({ providerKey: \"api-football\", endpointKey: \"fixtures-by-date\"")).toBeLessThan(runtime.indexOf("mapFixture(row")); expect(runtime).not.toMatch(/bet|stake|kelly/iu);
+    expect(page).toContain('"mejores-partidos"'); expect(page).toContain("await connection()"); expect(component).toContain("Sin una señal suficientemente clara"); expect(component).toContain("Sin una cuota directa no afirmamos valor ni rentabilidad"); expect(component).toContain("Otros"); expect(component).not.toMatch(/process\.env|API_FOOTBALL_KEY|THE_ODDS_API_KEY/); for(const model of ["DailyAnalysisRun","DailyFixtureCandidate","DailyMarketEvaluation","DailyRecommendation","DailyExclusion"]) expect(schema).toContain(`model ${model}`); expect(migration).toContain("DailyRecommendation_no_update"); expect(script).toContain('["AUTOMATED_BETTING",false]'); expect(service).toContain("/usr/bin/flock --nonblock"); expect(service).toContain("providers.env"); expect(service).not.toContain("web.env"); expect(timer).toContain("10:30:00 America/Asuncion"); expect(timer).toContain("Persistent=true"); expect(runtime.match(/\.listFixtures\(/gu)).toHaveLength(1); expect(runtime).toContain("timezone: DAILY_FIXTURE_DISCOVERY_POLICY.timezone"); expect(runtime.indexOf("publish({ providerKey: \"api-football\", endpointKey: \"fixtures-by-date\"")).toBeLessThan(runtime.indexOf("mapFixture(row")); expect(runtime).not.toMatch(/bet|stake|kelly/iu);
   });
 });

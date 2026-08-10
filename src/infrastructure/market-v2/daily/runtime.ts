@@ -4,7 +4,7 @@ import { ApiFootballClient } from "@/infrastructure/market-v2/api-football/clien
 import { buildApiFootballConfig } from "@/infrastructure/market-v2/api-football/config";
 import { OperationalRawEvidenceStore } from "@/infrastructure/market-v2/capture/operational-evidence-store";
 import { classifyOddsProviderFailure, TheOddsApiClient, TheOddsApiError, type OddsApiEvent } from "@/infrastructure/market-v2/the-odds-api/client";
-import { DAILY_FIXTURE_DISCOVERY_POLICY, evaluateMarkets, filterFixture, sportsDateD1, type DailyPrediction, type DiscoveredFixture, type MarketQuote } from "@/domain/market-v2/daily-analysis";
+import { DAILY_FIXTURE_DISCOVERY_POLICY, evaluateMarkets, filterFixture, normalizeName, sportsDateToday, type DailyPrediction, type DiscoveredFixture, type MarketQuote } from "@/domain/market-v2/daily-analysis";
 import type { ApiFootballFixtureDto, ApiFootballPredictionDto } from "@/infrastructure/market-v2/api-football/contracts";
 import type { RawEvidenceDescriptor } from "@/application/market-v2/capture/raw-evidence-store";
 import { AUTOMATIC_DAILY_RANKING_POLICY, AUTOMATIC_ODDS_MATCHING_POLICY, matchAutomaticFixture, scoreAutomaticReview, selectAutomaticReview, type AutomaticCategory } from "@/domain/market-v2/automatic-review-v1";
@@ -30,7 +30,7 @@ export function parseDailyArguments(argv: readonly string[], now = new Date()): 
     const value = argv[++i]; if (!value || value.startsWith("--") || values.has(key)) fail("ARGUMENT_INVALID"); values.set(key, value);
   }
   if (dryRun === allowNetwork) fail("EXPLICIT_EXECUTION_MODE_REQUIRED");
-  const sportsDate = values.get("--sports-date") ?? sportsDateD1(now);
+  const sportsDate = values.get("--sports-date") ?? sportsDateToday(now);
   const mode = values.get("--mode") ?? "provisional";
   if (!validDate(sportsDate)) fail("SPORTS_DATE_INVALID");
   if (mode !== "full" && mode !== "provisional") fail("MODE_INVALID");
@@ -59,7 +59,21 @@ function syntheticPrediction(index: number): DailyPrediction { return Object.fre
 
 function mapFixture(value: ApiFootballFixtureDto, sportsDate: string): DiscoveredFixture { return Object.freeze({ providerFixtureId: String(value.fixture.id), providerCompetitionId: String(value.league.id), providerHomeTeamId: String(value.teams.home.id), providerAwayTeamId: String(value.teams.away.id), sportsDate, kickoffAtUtc: new Date(value.fixture.date).toISOString(), sourceTimezone: String(value.fixture.timezone), status: String(value.fixture.status.short), season: Number(value.league.season), round: String(value.league.round), competitionName: String(value.league.name), country: String(value.league.country), homeName: String(value.teams.home.name), awayName: String(value.teams.away.name) }); }
 function percent(value: string): number { return Number(value.replace("%", "")) / 100; }
-function mapPrediction(value: ApiFootballPredictionDto, rawSignals: Readonly<Record<string, unknown>>): DailyPrediction { const p = value.predictions.percent; const home = percent(p.home), draw = percent(p.draw), away = percent(p.away); const sum = home + draw + away; if (sum <= 0) fail("PREDICTION_PERCENT_INVALID"); return Object.freeze({ home: home / sum, draw: draw / sum, away: away / sum, winner: value.predictions.winner?.name ?? null, advice: value.predictions.advice ?? null, contextualAgreement: value.predictions.winner?.name ? .8 : .55, contradictory: false, rawSignals }); }
+function mapPrediction(value: ApiFootballPredictionDto, rawSignals: Readonly<Record<string, unknown>>): DailyPrediction {
+  const p = value.predictions.percent;
+  const home = percent(p.home), draw = percent(p.draw), away = percent(p.away);
+  const sum = home + draw + away;
+  if (sum <= 0) fail("PREDICTION_PERCENT_INVALID");
+  const normalized = { home: home / sum, draw: draw / sum, away: away / sum };
+  const top = Math.max(normalized.home, normalized.draw, normalized.away);
+  const topSides = [normalized.home === top ? "HOME" : null, normalized.draw === top ? "DRAW" : null, normalized.away === top ? "AWAY" : null].filter(Boolean);
+  const winnerName = value.predictions.winner?.name ?? null;
+  const winnerSide = winnerName && normalizeName(winnerName) === normalizeName(value.teams.home.name) ? "HOME"
+    : winnerName && normalizeName(winnerName) === normalizeName(value.teams.away.name) ? "AWAY"
+    : null;
+  const contradictory = winnerSide !== null && topSides.length === 1 && !topSides.includes(winnerSide);
+  return Object.freeze({ ...normalized, winner: winnerName, advice: value.predictions.advice ?? null, contextualAgreement: winnerSide ? contradictory ? .25 : .8 : .55, contradictory, rawSignals });
+}
 
 type AuditEntry = Readonly<{ providerKey: "api-football" | "the-odds-api"; endpointKey: string; startedAtUtc: string; finishedAtUtc: string; httpStatus: number | null; classification: string; sanitizedErrorCode?:string }>;
 type Evaluation = ReturnType<typeof evaluateMarkets>[number];
@@ -141,7 +155,7 @@ export async function runDaily(args: DailyArguments, deps: Readonly<{ fetchImpl?
     }
   }
   const rankedInput: RankedItem[] = []; const evaluationsByFixture = new Map<string, readonly Evaluation[]>();
-  for (const item of deep) { const prediction = predictions.get(item.fixture.providerFixtureId); if (!prediction) continue; const probabilities = [prediction.home, prediction.draw, prediction.away].sort((a,b)=>b-a); const margin = probabilities[0] - probabilities[1]; const evaluations = evaluateMarkets(prediction, quotesByFixture.get(item.fixture.providerFixtureId) ?? []); evaluationsByFixture.set(item.fixture.providerFixtureId, evaluations); for (const evaluation of evaluations) { if (evaluation.modelProbability === null) continue; const narrowed = { ...evaluation, modelProbability: evaluation.modelProbability }; const scored = scoreAutomaticReview({ market: evaluation.market, modelProbability: evaluation.modelProbability, topMargin: ["HOME","DRAW","AWAY"].includes(evaluation.market) ? margin : .1, dataQuality: item.filter.quality, contextualAgreement: prediction.contextualAgreement, contradictory: prediction.contradictory, edge: evaluation.edge, expectedValue: evaluation.expectedValue, dispersion: evaluation.dispersion }); rankedInput.push({ fixture: item.fixture, prediction, evaluation: narrowed, scored, category:scored.category, score: scored.total, edge:evaluation.edge, kickoffAtUtc: item.fixture.kickoffAtUtc, fixtureId: item.fixture.providerFixtureId }); } }
+  for (const item of deep) { const prediction = predictions.get(item.fixture.providerFixtureId); if (!prediction) continue; const probabilities = [prediction.home, prediction.draw, prediction.away].sort((a,b)=>b-a); const margin = probabilities[0] - probabilities[1]; const evaluations = evaluateMarkets(prediction, quotesByFixture.get(item.fixture.providerFixtureId) ?? []); evaluationsByFixture.set(item.fixture.providerFixtureId, evaluations); for (const evaluation of evaluations) { if (evaluation.modelProbability === null) continue; const narrowed = { ...evaluation, modelProbability: evaluation.modelProbability }; const scored = scoreAutomaticReview({ market: evaluation.market, modelProbability: evaluation.modelProbability, topMargin: margin, dataQuality: item.filter.quality, contextualAgreement: prediction.contextualAgreement, contradictory: prediction.contradictory, edge: evaluation.edge, expectedValue: evaluation.expectedValue, dispersion: evaluation.dispersion }); rankedInput.push({ fixture: item.fixture, prediction, evaluation: narrowed, scored, category:scored.category, score: scored.total, edge:evaluation.edge, kickoffAtUtc: item.fixture.kickoffAtUtc, fixtureId: item.fixture.providerFixtureId }); } }
   const marketEvaluationCount = [...evaluationsByFixture.values()].reduce((total, evaluations) => total + evaluations.length, 0);
   const categoryPriority:Record<AutomaticCategory,number>={VALUE_DETECTED:0,MODEL_REVIEW:1,WATCH:2,PASS:3};
   const orderedMarkets=[...rankedInput].sort((a,b)=>categoryPriority[a.category]-categoryPriority[b.category]||b.score-a.score||b.evaluation.modelProbability-a.evaluation.modelProbability||a.evaluation.market.localeCompare(b.evaluation.market)); const perFixture = new Map<string, RankedItem>(); for (const value of orderedMarkets) if (!perFixture.has(value.fixtureId)) perFixture.set(value.fixtureId, value); const selected=selectAutomaticReview([...perFixture.values()]);const ranked=[...selected.primary.slice(0,args.top),...selected.watch,...selected.discarded];

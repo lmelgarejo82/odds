@@ -1,7 +1,7 @@
 import { readFile } from "node:fs/promises";
 import { describe, expect, it } from "vitest";
 import { filterFixture, sportsDateInAsuncion, type DiscoveredFixture } from "@/domain/market-v2/daily-analysis";
-import { evaluateOperationalResult, groupPerformance, summarizePerformance, type PerformanceRecord } from "@/domain/market-v2/operational-history";
+import { evaluateOperationalResult, groupPerformance, selectCanonicalDailyRuns, summarizePerformance, type PerformanceRecord } from "@/domain/market-v2/operational-history";
 import { mapPriceableOdds } from "@/domain/market-v2/odds-market-mapping";
 import type { OddsApiEvent } from "@/infrastructure/market-v2/the-odds-api/client";
 
@@ -77,6 +77,16 @@ describe("Automatic V1: fecha local, mercados e historial", () => {
     expect(groupPerformance(records, "category").map((group) => group.key)).toEqual(["MODEL_REVIEW", "WATCH"]);
   });
 
+  it("elige una ejecución primaria por fecha y excluye derivados", () => {
+    const runs = [
+      { id: "old", sportsDate: "2026-08-05", completedAtUtc: new Date("2026-08-05T10:00:00Z"), derivedFromRunId: null },
+      { id: "latest", sportsDate: "2026-08-05", completedAtUtc: new Date("2026-08-05T11:00:00Z"), derivedFromRunId: null },
+      { id: "replay", sportsDate: "2026-08-05", completedAtUtc: new Date("2026-08-05T12:00:00Z"), derivedFromRunId: "latest" },
+      { id: "next", sportsDate: "2026-08-06", completedAtUtc: new Date("2026-08-06T11:00:00Z"), derivedFromRunId: null },
+    ];
+    expect(selectCanonicalDailyRuns(runs).map(({ id }) => id)).toEqual(["next", "latest"]);
+  });
+
   it("expone historial/rendimiento y mantiene el replay offline sin clientes de red", async () => {
     const [page, navigation, daily, history, performance, replay, migration] = await Promise.all([
       readFile("src/app/[section]/page.tsx", "utf8"),
@@ -88,9 +98,9 @@ describe("Automatic V1: fecha local, mercados e historial", () => {
       readFile("prisma/migrations/20260803190000_add_daily_next_day_ranking/migration.sql", "utf8"),
     ]);
     expect(page).toContain('section === "historial"');
-    expect(page).toContain('section === "rendimiento"');
-    expect(navigation).toContain('["Historial","/historial"]');
-    expect(navigation).toContain('["Rendimiento","/rendimiento"]');
+    expect(page).toContain('"rendimiento"');
+    expect(navigation).toContain('["Historial", "/historial"]');
+    expect(navigation).toContain('["Rendimiento", "/rendimiento"]');
     expect([daily, history, performance].join("\n")).toContain("sportsDateInAsuncion");
     expect(history).toContain("recommendation.market");
     expect(history).toContain("evaluateOperationalResult");

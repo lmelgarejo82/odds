@@ -1,3 +1,13 @@
 import Link from "next/link";
-export const navigation = [["Inicio","/"],["Fuentes","/fuentes"],["Partidos","/partidos"],["Conciliación","/conciliacion"],["Análisis histórico","/analisis-historico"],["Semántica Statarea","/semantica-statarea"],["Sistema de prioridad","/sistema-prioridad"],["Ejecución prospectiva","/ejecucion-prospectiva"],["Mejores partidos","/mejores-partidos"],["Historial","/historial"],["Rendimiento","/rendimiento"],["Seguimiento","/seguimiento"],["Importaciones","/importaciones"],["Reportes","/reportes"],["Configuración asistida","/configuracion-asistida"]] as const;
-export function Navigation(){return <nav aria-label="Navegación principal">{navigation.map(([label,href])=><Link key={href} href={href}>{label}</Link>)}</nav>}
+
+export const navigation = [
+  ["Hoy", "/mejores-partidos"],
+  ["Historial", "/historial"],
+  ["Rendimiento", "/rendimiento"],
+] as const;
+
+export function Navigation() {
+  return <nav className="main-nav" aria-label="Navegación principal">
+    {navigation.map(([label, href]) => <Link key={href} href={href}>{label}</Link>)}
+  </nav>;
+}

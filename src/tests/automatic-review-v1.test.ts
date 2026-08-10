@@ -40,9 +40,9 @@ describe("automatic review V1", () => {
     expect(scoreAutomaticReview({ ...base, modelProbability: .62, contextualAgreement: .7, edge: .01, expectedValue: .01 }).category).toBe("WATCH");
     expect(scoreAutomaticReview({ ...base, topMargin: 0, edge: null, expectedValue: null }).category).toBe("PASS");
   });
-  it("publica máximo cinco y máximo tres VALUE", () => {
+  it("publica máximo tres señales principales", () => {
     const values = Array.from({ length: 10 }, (_, index) => ({ fixtureId: `f${index}`, category: index < 6 ? "VALUE_DETECTED" as const : "MODEL_REVIEW" as const, score: 90 - index, edge: .05, kickoffAtUtc: `2026-08-05T${String(index + 10).padStart(2, "0")}:00:00Z` }));
-    const selected = selectAutomaticReview(values); expect(selected.primary).toHaveLength(5); expect(selected.primary.filter((x) => x.category === "VALUE_DETECTED")).toHaveLength(3);
+    const selected = selectAutomaticReview(values); expect(selected.primary).toHaveLength(3); expect(selected.primary.filter((x) => x.category === "VALUE_DETECTED")).toHaveLength(3);
   });
   it("calibra BOOTSTRAP y EARLY, rechazando resultados sin predicción prospectiva", () => {
     const valid = { market: "HOME" as const, probability: .6, hit: true, predictionCapturedAtUtc: "2026-08-05T10:00:00Z", kickoffAtUtc: "2026-08-05T18:00:00Z", outcomeObservedAtUtc: "2026-08-05T21:00:00Z" };
@@ -55,7 +55,7 @@ describe("automatic review V1", () => {
     for (const table of ["DailySettlementRun", "DailySettlementEvidence", "DailyOutcome"]) { expect(migration).toContain(`${table}_no_update`); expect(migration).toContain(`${table}_no_delete`); }
     expect(worker.indexOf("store.publish(")).toBeLessThan(worker.indexOf("mapApiFootballResult(")); expect(worker).toContain("RESULT_NOT_TERMINAL"); expect(worker).toContain("take: args.maxFixtures");
     expect(service).toContain("/usr/bin/flock --nonblock"); expect(timer).toContain("03:30:00 America/Asuncion"); expect(timer).toContain("12:30:00 America/Asuncion"); expect(timer).toContain("Persistent=true");
-    expect(ui).toContain("Mejores partidos del día"); expect(ui).toContain("No hay apuestas automáticas ni garantías de resultado."); expect(ui).toContain("slice(0, 5)");
+    expect(ui).toContain("Qué mirar hoy"); expect(ui).toContain("No hay apuestas automáticas ni garantías de resultado."); expect(ui).toContain("slice(0, 3)");
     expect([migration, worker, service, timer, ui].join("\n")).not.toMatch(/placeBet|stakeAmount|kelly/iu);
   });
 });

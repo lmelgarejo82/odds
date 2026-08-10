@@ -1,5 +1,22 @@
 import type { DailyMarket } from "./daily-analysis";
 
+export type DailyRunIdentity = Readonly<{
+  id: string;
+  sportsDate: string;
+  completedAtUtc: Date;
+  derivedFromRunId: string | null;
+}>;
+
+export function selectCanonicalDailyRuns<T extends DailyRunIdentity>(runs: readonly T[]): readonly T[] {
+  const byDate = new Map<string, T>();
+  for (const run of runs) {
+    if (run.derivedFromRunId !== null) continue;
+    const current = byDate.get(run.sportsDate);
+    if (!current || run.completedAtUtc.valueOf() > current.completedAtUtc.valueOf() || (run.completedAtUtc.valueOf() === current.completedAtUtc.valueOf() && run.id.localeCompare(current.id) > 0)) byDate.set(run.sportsDate, run);
+  }
+  return Object.freeze([...byDate.values()].sort((left, right) => right.sportsDate.localeCompare(left.sportsDate) || right.completedAtUtc.valueOf() - left.completedAtUtc.valueOf()));
+}
+
 export type OperationalResultStatus = "PENDING" | "HIT" | "MISS" | "VOID";
 export type TerminalOutcome = Readonly<{
   result1X2: "HOME" | "DRAW" | "AWAY";

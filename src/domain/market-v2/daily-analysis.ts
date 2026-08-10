@@ -1,8 +1,9 @@
 export const DAILY_TIME_ZONE = "America/Asuncion" as const;
 export const DAILY_LOCALE = "es-PY" as const;
 export const DAILY_FIXTURE_DISCOVERY_POLICY = Object.freeze({
-  version: "fixture-discovery/asuncion-day-v1",
+  version: "fixture-discovery/asuncion-today-v2",
   timezone: DAILY_TIME_ZONE,
+  minimumLeadMinutes: 90,
 });
 export const DAILY_SCORING_POLICY = Object.freeze({
   version: "daily-ranking/1.1.0",
@@ -40,12 +41,10 @@ export function assessHistoricalCalibration(records: readonly HistoricalCalibrat
   return {available:true,status:"VALIDATED",sampleSize:validation.sampleSize,record:validation};
 }
 
-export function sportsDateD1(now: Date): string {
+export function sportsDateToday(now: Date): string {
   const parts = new Intl.DateTimeFormat("en-CA", { timeZone: DAILY_TIME_ZONE, year: "numeric", month: "2-digit", day: "2-digit" }).formatToParts(now);
   const values = Object.fromEntries(parts.map((part) => [part.type, part.value]));
-  const localMidnight = new Date(`${values.year}-${values.month}-${values.day}T00:00:00.000Z`);
-  localMidnight.setUTCDate(localMidnight.getUTCDate() + 1);
-  return localMidnight.toISOString().slice(0, 10);
+  return `${values.year}-${values.month}-${values.day}`;
 }
 
 export function sportsDateInAsuncion(value: Date | string): string | null {
@@ -65,7 +64,7 @@ export function filterFixture(fixture: DiscoveredFixture, nowUtc: Date): Readonl
   if (fixture.status !== "NS") return { eligible: false, reasonCode: "STATUS_NOT_NS", quality: 0 };
   if (!Number.isFinite(Date.parse(fixture.kickoffAtUtc))) return { eligible: false, reasonCode: "KICKOFF_INVALID", quality: 0 };
   if (sportsDateInAsuncion(fixture.kickoffAtUtc) !== fixture.sportsDate) return { eligible: false, reasonCode: "LOCAL_SPORTS_DATE_MISMATCH", quality: 0 };
-  if (Date.parse(fixture.kickoffAtUtc) <= nowUtc.valueOf()) return { eligible: false, reasonCode: "KICKOFF_NOT_FUTURE", quality: 0 };
+  if (Date.parse(fixture.kickoffAtUtc) < nowUtc.valueOf() + DAILY_FIXTURE_DISCOVERY_POLICY.minimumLeadMinutes * 60_000) return { eligible: false, reasonCode: "KICKOFF_TOO_CLOSE", quality: 0 };
   if (!/^\d+$/u.test(fixture.providerFixtureId) || !/^\d+$/u.test(fixture.providerCompetitionId) || !/^\d+$/u.test(fixture.providerHomeTeamId) || !/^\d+$/u.test(fixture.providerAwayTeamId)) return { eligible: false, reasonCode: "IDENTITY_INCOMPLETE", quality: 0 };
   if (fixture.providerHomeTeamId === fixture.providerAwayTeamId || normalizeName(fixture.homeName) === normalizeName(fixture.awayName)) return { eligible: false, reasonCode: "SAME_TEAM", quality: 0 };
   if (!fixture.competitionName.trim() || !Number.isSafeInteger(fixture.season)) return { eligible: false, reasonCode: "COMPETITION_INCOMPLETE", quality: 0 };
