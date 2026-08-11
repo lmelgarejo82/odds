@@ -57,7 +57,7 @@ export async function DailyRankingStatus() {
   const currentIdentity = [...runIdentities]
     .filter((identity) => identity.scoringPolicyVersion === AUTOMATIC_DAILY_RANKING_POLICY.version)
     .sort((left, right) => right.sportsDate.localeCompare(left.sportsDate) || right.completedAtUtc.valueOf() - left.completedAtUtc.valueOf())[0] ?? canonicalRuns[0];
-  if (!currentIdentity) return <section className="empty-product"><span className="eyebrow">Análisis diario</span><h1>Todavía no hay una agenda analizada</h1><p>La primera ejecución se publicará automáticamente a las 10:30, hora de Asunción.</p></section>;
+  if (!currentIdentity) return <section className="empty-product"><span className="eyebrow">Análisis diario</span><h1>Todavía no hay una agenda analizada</h1><p>La primera ejecución se publicará automáticamente a las 09:00, hora de Asunción.</p></section>;
 
   const [run, prospective, capability] = await Promise.all([
     database.dailyAnalysisRun.findUnique({ where: { id: currentIdentity.id }, include: { requestAudits: true, evidence: true, exclusions: { orderBy: { createdAtUtc: "asc" } }, candidates: { include: { fixture: { include: { homeTeam: true, awayTeam: true } }, evaluations: true, recommendations: { include: { marketEvaluation: true }, orderBy: { rank: "asc" } } } } } }),
@@ -78,21 +78,21 @@ export async function DailyRankingStatus() {
   const entries = localCandidates.flatMap((candidate) => candidate.recommendations.map((recommendation) => ({ candidate, recommendation, category: validCategory(recommendation.automaticCategory) })));
   const priority: Record<AutomaticCategory, number> = { VALUE_DETECTED: 0, MODEL_REVIEW: 1, WATCH: 2, PASS: 3 };
   const ordered = [...entries].sort((a, b) => priority[a.category] - priority[b.category] || Number(b.recommendation.scoreTotal) - Number(a.recommendation.scoreTotal) || a.candidate.fixture.kickoffAtUtc.valueOf() - b.candidate.fixture.kickoffAtUtc.valueOf());
-  const primary = ordered.filter(({ category }) => category !== "PASS").slice(0, 3);
-  const primaryIds = new Set(primary.map(({ recommendation }) => recommendation.id));
-  const remaining = ordered.filter(({ recommendation }) => !primaryIds.has(recommendation.id));
+  const topTen = ordered.slice(0, 10);
+  const clearSignals = topTen.filter(({ category }) => category !== "PASS");
+  const remaining = ordered.slice(10);
   const providerValidationError = [...run.requestAudits].reverse().find((audit) => audit.providerId === "provider-the-odds-api" && audit.sanitizedErrorCode);
 
   return <>
     <section className="product-hero">
       <div><span className="eyebrow">Intelligent 1X · {DAILY_TIME_ZONE}</span><h1>Local o empate</h1><p>{run.sportsDate} · Análisis actualizado a las {timeOnly.format(run.completedAtUtc)}</p></div>
-      <div className="run-status"><span className="status-dot" />Automático · 10:30<small>Próximo análisis diario</small></div>
+      <div className="run-status"><span className="status-dot" />Automático · 09:00<small>Próximo análisis diario</small></div>
     </section>
 
     <section className="today-summary" aria-label="Resumen del análisis">
       <article><span>Partidos encontrados</span><strong>{run.fixturesDiscovered}</strong></article>
       <article><span>Análisis profundo</span><strong>{run.fixturesDeepAnalyzed}</strong></article>
-      <article><span>Señales 1X claras</span><strong>{primary.length}</strong></article>
+      <article><span>Señales 1X claras</span><strong>{clearSignals.length}</strong></article>
       <article><span>Con cuota verificada</span><strong>{run.usableOddsCount}</strong></article>
     </section>
 
@@ -101,25 +101,25 @@ export async function DailyRankingStatus() {
       <p>{run.usableOddsAvailable ? "El valor y el EV aparecen únicamente con una cuota 1X vinculada al mismo partido." : "Combinamos la probabilidad de local y empate, exigimos que la derrota quede claramente atrás y contrastamos la lectura textual. +1,5 solo aparece como refuerzo contextual explícito."}</p>
     </section>
 
-    {primary.length === 0 ? <section className="empty-product compact"><span className="eyebrow">Resultado de hoy</span><h2>Sin un 1X suficientemente claro</h2><p>El sistema analizó {run.fixturesDeepAnalyzed} partidos, pero en ninguno pudo excluir claramente la derrota local con señales coherentes. Es una abstención útil, no un error.</p></section> : <section className="featured-section"><div className="section-heading"><div><span className="eyebrow">Prioridad 1X</span><h2>{primary.length === 1 ? "La señal más clara" : `Las ${primary.length} señales más claras`}</h2></div><span className="section-note">Máximo tres</span></div><div className="signal-list">{primary.map(({ candidate, recommendation, category }, index) => {
+    {topTen.length === 0 ? <section className="empty-product compact"><span className="eyebrow">Resultado de hoy</span><h2>Sin partidos analizables</h2><p>No hubo fixtures prepartido suficientes para construir el ranking 1X. El sistema no completa lugares con datos inventados.</p></section> : <section className="featured-section"><div className="section-heading"><div><span className="eyebrow">Ranking Intelligent 1X</span><h2>Top 1X de hoy</h2></div><span className="section-note">{topTen.length} de hasta 10 · {clearSignals.length} cumplen el filtro</span></div><div className="signal-list">{topTen.map(({ candidate, recommendation, category }, index) => {
       const evaluation = recommendation.marketEvaluation;
       const pricedEvaluation = recommendation.bestPricedMarket ? candidate.evaluations.find((item) => item.market === recommendation.bestPricedMarket) : evaluation.bestMarketOdds !== null ? evaluation : null;
       const directQuote = pricedEvaluation?.bestMarketOdds !== null && pricedEvaluation?.bestMarketOdds !== undefined;
-      const reasons = list(recommendation.explanationJson).map(readable).filter((value) => !/revisión automática explicable/iu.test(value));
+      const reasons = list(recommendation.explanationJson).filter((value) => !["VALUE_DETECTED", "MODEL_REVIEW", "WATCH", "PASS"].includes(value)).map(readable).filter((value) => !/revisión automática explicable/iu.test(value));
       const risks = list(recommendation.risksJson).map(readable);
       const storedPrediction = prediction(candidate.predictionJson);
       const signal = storedPrediction ? assessIntelligentOneX({ homeProbability: storedPrediction.home, drawProbability: storedPrediction.draw, awayProbability: storedPrediction.away, homeName: candidate.fixture.homeTeam.displayName, winnerName: storedPrediction.winner ?? null, advice: storedPrediction.advice ?? null }) : null;
-      return <article className="signal-card" key={recommendation.id}>
+      return <article className={`signal-card ${category === "PASS" ? "is-pass" : ""}`} key={recommendation.id}>
         <div className="signal-rank">{String(index + 1).padStart(2, "0")}</div>
         <div className="match-context"><span>{candidate.fixture.country} · {candidate.fixture.competitionName}</span><h3>{candidate.fixture.homeTeam.displayName}<i>vs</i>{candidate.fixture.awayTeam.displayName}</h3><time dateTime={candidate.fixture.kickoffAtUtc.toISOString()}>{dateTime.format(candidate.fixture.kickoffAtUtc)}</time></div>
-        <div className="decision-block"><span className={`quality-pill quality-${category.toLowerCase()}`}>{categoryLabel[category]}</span><small>Lectura sugerida</small><strong>{marketLabel("1X")}</strong>{signal?.over15Context && <span className="context-pill">+ Más de 1,5 goles</span>}</div>
-        <div className="signal-facts"><div><span>Modelo</span><strong>{percent(evaluation.modelProbability)}</strong></div><div><span>Cuota real</span><strong>{directQuote ? decimal(pricedEvaluation?.bestMarketOdds) : "No disponible"}</strong></div><div><span>Valor esperado</span><strong>{directQuote ? percent(pricedEvaluation?.expectedValue) : "No calculable"}</strong></div></div>
+        <div className="decision-block"><span className={`quality-pill quality-${category.toLowerCase()}`}>{categoryLabel[category]}</span><small>{category === "PASS" ? "Mercado analizado" : "Lectura sugerida"}</small><strong>{marketLabel("1X")}</strong>{signal?.over15Context && <span className="context-pill">+ Más de 1,5 goles</span>}</div>
+        <div className="signal-facts"><div><span>Probabilidad 1X</span><strong>{percent(signal?.probability ?? evaluation.modelProbability)}</strong></div><div><span>Riesgo de derrota</span><strong>{percent(storedPrediction?.away ?? null)}</strong></div><div><span>Brecha de protección</span><strong>{percent(signal?.protectionGap ?? null)}</strong></div>{directQuote && <><div><span>Cuota 1X</span><strong>{decimal(pricedEvaluation?.bestMarketOdds)}</strong></div><div><span>Valor esperado</span><strong>{percent(pricedEvaluation?.expectedValue)}</strong></div></>}</div>
         <div className="plain-explanation"><p><b>Por qué:</b> {reasons[0] ?? "Señal provisional consistente"}</p><p><b>Atención:</b> {risks[0] ?? "Muestra propia todavía limitada"}</p></div>
         <details className="technical-detail"><summary>Ver análisis y riesgos</summary><p>Probabilidad 1X: {percent(signal?.probability ?? evaluation.modelProbability)} · separación frente a derrota: {percent(signal?.protectionGap ?? null)}.</p><p>Razones: {reasons.length ? reasons.join(" · ") : "Señal provisional consistente"}</p><p>Riesgos: {risks.length ? risks.join(" · ") : "Muestra propia todavía limitada"}</p></details>
       </article>;
     })}</div></section>}
 
-    {remaining.length > 0 && <details className="secondary-analysis"><summary>Otros {remaining.length} partidos descartados</summary><div className="compact-match-list">{remaining.map(({ candidate, recommendation, category }) => <article key={recommendation.id}><div><strong>{candidate.fixture.homeTeam.displayName} — {candidate.fixture.awayTeam.displayName}</strong><small>{candidate.fixture.competitionName} · {dateTime.format(candidate.fixture.kickoffAtUtc)}</small></div><div><span>{marketLabel("1X")}</span><strong>{categoryLabel[category]}</strong></div></article>)}</div></details>}
+    {remaining.length > 0 && <details className="secondary-analysis"><summary>Otros {remaining.length} análisis fuera del Top 10</summary><div className="compact-match-list">{remaining.map(({ candidate, recommendation, category }) => <article key={recommendation.id}><div><strong>{candidate.fixture.homeTeam.displayName} — {candidate.fixture.awayTeam.displayName}</strong><small>{candidate.fixture.competitionName} · {dateTime.format(candidate.fixture.kickoffAtUtc)}</small></div><div><span>{marketLabel("1X")}</span><strong>{categoryLabel[category]}</strong></div></article>)}</div></details>}
 
     <section className="product-links"><Link href={`/historial?date=${run.sportsDate}`}><span>Revisar resultados</span><strong>Historial →</strong></Link><Link href="/rendimiento"><span>Ver si el modelo mejora</span><strong>Rendimiento →</strong></Link></section>
 

@@ -1,6 +1,6 @@
 import { readFile } from "node:fs/promises";
 import { describe, expect, it, vi } from "vitest";
-import { DAILY_SCORING_POLICY, deterministicFixtureMatch, evaluateMarkets, filterFixture, noVig, rankDeterministically, scoreEvaluation, sportsDateToday, type DiscoveredFixture } from "@/domain/market-v2/daily-analysis";
+import { DAILY_SCORING_POLICY, deterministicFixtureMatch, evaluateMarkets, filterFixture, noVig, rankDeterministically, scoreEvaluation, selectEligibleFixtureWindow, sportsDateToday, type DiscoveredFixture } from "@/domain/market-v2/daily-analysis";
 import { DailyRuntimeError, parseDailyArguments, runDaily } from "@/infrastructure/market-v2/daily/runtime";
 import { TheOddsApiClient } from "@/infrastructure/market-v2/the-odds-api/client";
 
@@ -20,6 +20,15 @@ describe("motor diario D0", () => {
     expect(filterFixture({...fixture,status:"FT"},new Date("2026-08-03T12:00:00Z")).reasonCode).toBe("STATUS_NOT_NS");
     expect(filterFixture({...fixture,competitionName:"International Friendly"},new Date("2026-08-03T12:00:00Z")).reasonCode).toBe("FRIENDLY_EXCLUDED");
     expect(filterFixture(fixture,new Date("2026-08-04T17:00:00Z")).reasonCode).toBe("KICKOFF_TOO_CLOSE");
+  });
+  it("filtra la respuesta completa antes de aplicar el límite de candidatos", () => {
+    const completed = Array.from({ length: 30 }, (_, index) => ({ ...fixture, providerFixtureId: String(index + 10), providerHomeTeamId: String(index + 100), providerAwayTeamId: String(index + 200), status: "FT" }));
+    const future = Array.from({ length: 12 }, (_, index) => ({ ...fixture, providerFixtureId: String(index + 1000), providerHomeTeamId: String(index + 2000), providerAwayTeamId: String(index + 3000), kickoffAtUtc: `2026-08-04T${String(index + 10).padStart(2, "0")}:00:00.000Z` }));
+    const selected = selectEligibleFixtureWindow([...completed, ...future], new Date("2026-08-03T12:00:00Z"), 10);
+    expect(selected.assessed).toHaveLength(42);
+    expect(selected.eligible).toHaveLength(10);
+    expect(selected.eligible[0].fixture.providerFixtureId).toBe("1000");
+    expect(selected.assessed.filter((item) => item.filter.reasonCode === "DISCOVERY_BUDGET_EXCEEDED")).toHaveLength(2);
   });
   it("hace binding determinista sin fuzzy silencioso", () => {
     expect(deterministicFixtureMatch(fixture,{homeName:"Olimpia",awayName:"Cerro Porteno",kickoffAtUtc:"2026-08-04T18:10:00Z"})).toBe(true);
@@ -51,6 +60,6 @@ describe("motor diario D0", () => {
   it("mantiene política versionada 25/25/25/15/10", () => expect(Object.values(DAILY_SCORING_POLICY.weights).reduce((a,b)=>a+b,0)).toBe(100));
   it("publica ruta dinámica es-PY y no expone escritura ni apuestas", async () => {
     const [page,component,schema,migration,script,service,timer,runtime]=await Promise.all([readFile("src/app/[section]/page.tsx","utf8"),readFile("src/components/daily-ranking-status.tsx","utf8"),readFile("prisma/schema.prisma","utf8"),readFile("prisma/migrations/20260803190000_add_daily_next_day_ranking/migration.sql","utf8"),readFile("scripts/market-v2-daily.ts","utf8"),readFile("deploy/systemd/odds-market-v2-daily.service","utf8"),readFile("deploy/systemd/odds-market-v2-daily.timer","utf8"),readFile("src/infrastructure/market-v2/daily/runtime.ts","utf8")]);
-    expect(page).toContain('"mejores-partidos"'); expect(page).toContain("await connection()"); expect(component).toContain("Sin un 1X suficientemente claro"); expect(component).toContain("Sin_COTIZACION_DIRECTA".toUpperCase()); expect(component).toContain("Otros"); expect(component).not.toMatch(/process\.env|API_FOOTBALL_KEY|THE_ODDS_API_KEY/); for(const model of ["DailyAnalysisRun","DailyFixtureCandidate","DailyMarketEvaluation","DailyRecommendation","DailyExclusion"]) expect(schema).toContain(`model ${model}`); expect(migration).toContain("DailyRecommendation_no_update"); expect(script).toContain('["AUTOMATED_BETTING",false]'); expect(service).toContain("/usr/bin/flock --nonblock"); expect(service).toContain("providers.env"); expect(service).not.toContain("web.env"); expect(timer).toContain("10:30:00 America/Asuncion"); expect(timer).toContain("Persistent=true"); expect(runtime.match(/\.listFixtures\(/gu)).toHaveLength(1); expect(runtime).toContain("timezone: DAILY_FIXTURE_DISCOVERY_POLICY.timezone"); expect(runtime.indexOf("publish({ providerKey: \"api-football\", endpointKey: \"fixtures-by-date\"")).toBeLessThan(runtime.indexOf("mapFixture(row")); expect(runtime).not.toMatch(/bet|stake|kelly/iu);
+    expect(page).toContain('"mejores-partidos"'); expect(page).toContain("await connection()"); expect(component).toContain("Sin partidos analizables"); expect(component).toContain("Sin_COTIZACION_DIRECTA".toUpperCase()); expect(component).toContain("Top 1X de hoy"); expect(component).not.toMatch(/process\.env|API_FOOTBALL_KEY|THE_ODDS_API_KEY/); for(const model of ["DailyAnalysisRun","DailyFixtureCandidate","DailyMarketEvaluation","DailyRecommendation","DailyExclusion"]) expect(schema).toContain(`model ${model}`); expect(migration).toContain("DailyRecommendation_no_update"); expect(script).toContain('["AUTOMATED_BETTING",false]'); expect(service).toContain("/usr/bin/flock --nonblock"); expect(service).toContain("providers.env"); expect(service).toContain("--deep-candidates 10 --top 10"); expect(service).not.toContain("web.env"); expect(timer).toContain("09:00:00 America/Asuncion"); expect(timer).toContain("Persistent=true"); expect(runtime.match(/\.listFixtures\(/gu)).toHaveLength(1); expect(runtime).toContain("timezone: DAILY_FIXTURE_DISCOVERY_POLICY.timezone"); expect(runtime.indexOf("publish({ providerKey: \"api-football\", endpointKey: \"fixtures-by-date\"")).toBeLessThan(runtime.indexOf("mapFixture(row")); expect(runtime).not.toMatch(/bet|stake|kelly/iu);
   });
 });

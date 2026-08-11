@@ -55,7 +55,7 @@ describe("automatic review V1", () => {
     for (const table of ["DailySettlementRun", "DailySettlementEvidence", "DailyOutcome"]) { expect(migration).toContain(`${table}_no_update`); expect(migration).toContain(`${table}_no_delete`); }
     expect(worker.indexOf("store.publish(")).toBeLessThan(worker.indexOf("mapApiFootballResult(")); expect(worker).toContain("RESULT_NOT_TERMINAL"); expect(worker).toContain("take: args.maxFixtures");
     expect(service).toContain("/usr/bin/flock --nonblock"); expect(timer).toContain("03:30:00 America/Asuncion"); expect(timer).toContain("12:30:00 America/Asuncion"); expect(timer).toContain("Persistent=true");
-    expect(ui).toContain("Local o empate"); expect(ui).toContain("No hay apuestas automáticas ni garantías de resultado."); expect(ui).toContain("slice(0, 3)");
+    expect(ui).toContain("Local o empate"); expect(ui).toContain("No hay apuestas automáticas ni garantías de resultado."); expect(ui).toContain("ordered.slice(0, 10)");
     expect([migration, worker, service, timer, ui].join("\n")).not.toMatch(/placeBet|stakeAmount|kelly/iu);
   });
 });

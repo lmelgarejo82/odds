@@ -4,7 +4,7 @@ import { ApiFootballClient } from "@/infrastructure/market-v2/api-football/clien
 import { buildApiFootballConfig } from "@/infrastructure/market-v2/api-football/config";
 import { OperationalRawEvidenceStore } from "@/infrastructure/market-v2/capture/operational-evidence-store";
 import { classifyOddsProviderFailure, TheOddsApiClient, TheOddsApiError, type OddsApiEvent } from "@/infrastructure/market-v2/the-odds-api/client";
-import { DAILY_FIXTURE_DISCOVERY_POLICY, evaluateMarkets, filterFixture, normalizeName, sportsDateToday, type DailyPrediction, type DiscoveredFixture, type MarketQuote } from "@/domain/market-v2/daily-analysis";
+import { DAILY_FIXTURE_DISCOVERY_POLICY, evaluateMarkets, normalizeName, selectEligibleFixtureWindow, sportsDateToday, type DailyPrediction, type DiscoveredFixture, type MarketQuote } from "@/domain/market-v2/daily-analysis";
 import type { ApiFootballFixtureDto, ApiFootballPredictionDto } from "@/infrastructure/market-v2/api-football/contracts";
 import type { RawEvidenceDescriptor } from "@/application/market-v2/capture/raw-evidence-store";
 import { AUTOMATIC_DAILY_RANKING_POLICY, AUTOMATIC_ODDS_MATCHING_POLICY, matchAutomaticFixture, scoreAutomaticReview, selectAutomaticReview, type AutomaticCategory } from "@/domain/market-v2/automatic-review-v1";
@@ -110,9 +110,9 @@ export async function runDaily(args: DailyArguments, deps: Readonly<{ fetchImpl?
     const published = await evidenceStore!.publish({ providerKey: "api-football", endpointKey: "fixtures-by-date", capturedAtUtc: response.evidenceCandidate.capturedAtUtc, mediaType: response.evidenceCandidate.mediaType, bytes: response.evidenceCandidate.rawBytes, sourceReference: `daily:${args.sportsDate}:fixtures` });
     if (!published.ok) fail("FIXTURE_EVIDENCE_FAILED");
     evidence.push(published.descriptor);
-    fixtures = response.payload.response.slice(0, args.maxFixtures).map((row) => mapFixture(row, args.sportsDate));
+    fixtures = response.payload.response.map((row) => mapFixture(row, args.sportsDate));
   }
-  const now = deps.now?.() ?? new Date(); const filtered = fixtures.map((fixture) => ({ fixture, filter: filterFixture(fixture, now) })); const eligible = filtered.filter((item) => item.filter.eligible).slice(0, args.maxFixtures);
+  const now = deps.now?.() ?? new Date(); const fixtureWindow = selectEligibleFixtureWindow(fixtures, now, args.maxFixtures); const filtered = fixtureWindow.assessed; const eligible = fixtureWindow.eligible;
   let capabilities = deps.oddsCapabilities ?? [];
   if (!args.dryRun && !deps.oddsCapabilities) { const capabilityDb = new PrismaClient({ datasourceUrl: args.databaseUrl }); try { const rows = await capabilityDb.oddsSportCapability.findMany({ where: { provider: "the-odds-api" }, orderBy: { lastValidatedAt: "desc" } }); const seen = new Set<string>(); capabilities = rows.flatMap((row) => { if (seen.has(row.sportKey)) return []; seen.add(row.sportKey); return [{ sportKey: row.sportKey, catalogActive: row.catalogActive, h2hStatus: row.h2hStatus as OddsCapabilityView["h2hStatus"], totalsStatus: row.totalsStatus as OddsCapabilityView["totalsStatus"] }]; }); } finally { await capabilityDb.$disconnect(); } }
   const prioritized = prioritizeDeepFixtures(eligible, capabilities, args.deepCandidates); const deep = prioritized.selected;

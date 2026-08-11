@@ -8,7 +8,7 @@ export const AUTOMATIC_ODDS_MATCHING_POLICY = Object.freeze({
 });
 
 export const AUTOMATIC_DAILY_RANKING_POLICY = Object.freeze({
-  version: "daily-ranking/intelligent-1x-v1",
+  version: "daily-ranking/intelligent-1x-top10-v2",
   weights: Object.freeze({
     modelConfidence: 25,
     historicalCalibration: 25,
