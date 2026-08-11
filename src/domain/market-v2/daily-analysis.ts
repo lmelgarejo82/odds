@@ -1,7 +1,7 @@
 export const DAILY_TIME_ZONE = "America/Asuncion" as const;
 export const DAILY_LOCALE = "es-PY" as const;
 export const DAILY_FIXTURE_DISCOVERY_POLICY = Object.freeze({
-  version: "fixture-discovery/asuncion-today-v2",
+  version: "fixture-discovery/asuncion-today-v3-filter-before-cap",
   timezone: DAILY_TIME_ZONE,
   minimumLeadMinutes: 90,
 });
@@ -73,6 +73,29 @@ export function filterFixture(fixture: DiscoveredFixture, nowUtc: Date): Readonl
   if (isDevelopmentFixture(fixture)) return { eligible: false, reasonCode: "DEVELOPMENT_TEAM_EXCLUDED", quality: 0.25 };
   const lowCoverage = /youth|women friendl(?:y|ies)|reserve/iu.test(`${fixture.competitionName} ${fixture.round}`);
   return { eligible: !lowCoverage, reasonCode: lowCoverage ? "LOW_COVERAGE_CATEGORY" : "ELIGIBLE", quality: lowCoverage ? 0.4 : 1 };
+}
+
+export type FixtureAssessment = Readonly<{
+  fixture: DiscoveredFixture;
+  filter: Readonly<{ eligible: boolean; reasonCode: string; quality: number }>;
+}>;
+
+export function selectEligibleFixtureWindow(fixtures: readonly DiscoveredFixture[], nowUtc: Date, maximum: number): Readonly<{
+  assessed: readonly FixtureAssessment[];
+  eligible: readonly FixtureAssessment[];
+}> {
+  if (!Number.isSafeInteger(maximum) || maximum < 1) throw new Error("FIXTURE_WINDOW_MAXIMUM_INVALID");
+  let admitted = 0;
+  const assessed = fixtures.map((fixture): FixtureAssessment => {
+    const filter = filterFixture(fixture, nowUtc);
+    if (!filter.eligible) return Object.freeze({ fixture, filter });
+    if (admitted < maximum) {
+      admitted += 1;
+      return Object.freeze({ fixture, filter });
+    }
+    return Object.freeze({ fixture, filter: Object.freeze({ eligible: false, reasonCode: "DISCOVERY_BUDGET_EXCEEDED", quality: filter.quality }) });
+  });
+  return Object.freeze({ assessed: Object.freeze(assessed), eligible: Object.freeze(assessed.filter((item) => item.filter.eligible)) });
 }
 
 export function isDevelopmentFixture(fixture: Pick<DiscoveredFixture, "homeName" | "awayName" | "competitionName" | "round">): boolean {
