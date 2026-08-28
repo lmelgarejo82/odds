@@ -2,6 +2,8 @@ import { database } from "@/infrastructure/database";
 import { sportsDateInAsuncion, type DailyMarket } from "@/domain/market-v2/daily-analysis";
 import { evaluateOperationalResult, groupPerformance, selectCanonicalDailyRuns, summarizePerformance, type PerformanceRecord } from "@/domain/market-v2/operational-history";
 import { marketLabel } from "@/components/market-labels";
+import { ForebetOneXEvidence } from "@/components/forebet-one-x-evidence";
+import { FOREBET_ONE_X_HISTORY } from "@/domain/market-v2/forebet-one-x-history";
 
 const percent = (value: number | null) => value === null ? "—" : `${(value * 100).toLocaleString("es-PY", { maximumFractionDigits: 1 })} %`;
 const decimal = (value: number | null) => value === null ? "—" : value.toLocaleString("es-PY", { maximumFractionDigits: 3 });
@@ -47,6 +49,10 @@ export async function OperationalPerformanceStatus() {
       <article><span>Error Brier</span><strong>{decimal(overall.brier)}</strong><small>Menor es mejor</small></article>
       <article><span>Con cuota válida</span><strong>{overall.pricedSample}</strong><small>{overall.pricedSample === 0 ? "ROI no disponible" : `${decimal(overall.pricedNetUnits)} unidades`}</small></article>
     </section>
+
+    <ForebetOneXEvidence compact />
+
+    <section className="performance-comparison" aria-label="Comparación entre histórico Forebet y operación actual"><div><span className="eyebrow">Dos muestras, sin mezclarlas</span><h2>Histórico de referencia frente a resultados propios</h2><p>El histórico Forebet sirve para justificar el ranking. La operación real mide si las predicciones publicadas por esta aplicación reproducen esa señal.</p></div><div className="comparison-values"><article><span>Forebet Top 10 histórico</span><strong>{percent(FOREBET_ONE_X_HISTORY.topTen.hitRate)}</strong><small>{FOREBET_ONE_X_HISTORY.topTen.hits}/{FOREBET_ONE_X_HISTORY.topTen.settled} resueltas</small></article><article><span>Aplicación en producción</span><strong>{percent(overall.hitRate)}</strong><small>{overall.hits}/{overall.resolved} resueltas · {overall.pending} pendientes</small></article></div></section>
 
     <section className="insight-panel"><div><span className="eyebrow">Lectura responsable</span><h2>{overall.resolved < 30 ? "Todavía no hay muestra suficiente para confiar en el porcentaje" : "La muestra ya permite una primera evaluación"}</h2></div><p>El intervalo de acierto al 95 % es {overall.wilsonLower95 === null ? "no disponible" : `${percent(overall.wilsonLower95)}–${percent(overall.wilsonUpper95)}`}. El hit rate describe resultados; no demuestra valor ni rentabilidad, especialmente en mercados con distinta tasa base.</p></section>
 
