@@ -5,6 +5,8 @@ import { AUTOMATIC_DAILY_RANKING_POLICY, calculateProspectiveCalibration, type A
 import { selectCanonicalDailyRuns } from "@/domain/market-v2/operational-history";
 import { assessIntelligentOneX } from "@/domain/market-v2/intelligent-one-x";
 import { marketLabel } from "@/components/market-labels";
+import { ForebetOneXEvidence, ForebetRankContext } from "@/components/forebet-one-x-evidence";
+import { OneXPredictionBreakdown } from "@/components/one-x-prediction-breakdown";
 
 const dateTime = new Intl.DateTimeFormat(DAILY_LOCALE, { timeZone: DAILY_TIME_ZONE, dateStyle: "medium", timeStyle: "short" });
 const timeOnly = new Intl.DateTimeFormat(DAILY_LOCALE, { timeZone: DAILY_TIME_ZONE, hour: "2-digit", minute: "2-digit" });
@@ -82,6 +84,12 @@ export async function DailyRankingStatus() {
   const clearSignals = topTen.filter(({ category }) => category !== "PASS");
   const remaining = ordered.slice(10);
   const providerValidationError = [...run.requestAudits].reverse().find((audit) => audit.providerId === "provider-the-odds-api" && audit.sanitizedErrorCode);
+  const predictionEvidence = run.evidence.find((item) => item.providerKey === "forebet")
+    ?? run.evidence.find((item) => item.providerKey === "api-football");
+  const predictionSource = predictionEvidence?.providerKey === "forebet" ? "Forebet"
+    : predictionEvidence?.providerKey === "api-football" ? "API-Football"
+      : "Modelo persistido";
+  const forebetComparable = predictionSource === "Forebet";
 
   return <>
     <section className="product-hero">
@@ -98,8 +106,10 @@ export async function DailyRankingStatus() {
 
     <section className={`signal-banner ${run.usableOddsAvailable ? "has-price" : "model-only"}`}>
       <div><span className="eyebrow">Solo 1X</span><h2>{run.usableOddsAvailable ? "Local o empate con precio verificable" : "Lectura inteligente de local o empate"}</h2></div>
-      <p>{run.usableOddsAvailable ? "El valor y el EV aparecen únicamente con una cuota 1X vinculada al mismo partido." : "Combinamos la probabilidad de local y empate, exigimos que la derrota quede claramente atrás y contrastamos la lectura textual. +1,5 solo aparece como refuerzo contextual explícito."}</p>
+      <p>{run.usableOddsAvailable ? "El valor y el EV aparecen únicamente con una cuota 1X vinculada al mismo partido." : `La predicción vigente procede de ${predictionSource}. Se muestran sus probabilidades completas y, por separado, el respaldo histórico Forebet para no mezclar fuentes.`}</p>
     </section>
+
+    <ForebetOneXEvidence />
 
     {topTen.length === 0 ? <section className="empty-product compact"><span className="eyebrow">Resultado de hoy</span><h2>Sin partidos analizables</h2><p>No hubo fixtures prepartido suficientes para construir el ranking 1X. El sistema no completa lugares con datos inventados.</p></section> : <section className="featured-section"><div className="section-heading"><div><span className="eyebrow">Ranking Intelligent 1X</span><h2>Top 1X de hoy</h2></div><span className="section-note">{topTen.length} de hasta 10 · {clearSignals.length} cumplen el filtro</span></div><div className="signal-list">{topTen.map(({ candidate, recommendation, category }, index) => {
       const evaluation = recommendation.marketEvaluation;
@@ -109,13 +119,17 @@ export async function DailyRankingStatus() {
       const risks = list(recommendation.risksJson).map(readable);
       const storedPrediction = prediction(candidate.predictionJson);
       const signal = storedPrediction ? assessIntelligentOneX({ homeProbability: storedPrediction.home, drawProbability: storedPrediction.draw, awayProbability: storedPrediction.away, homeName: candidate.fixture.homeTeam.displayName, winnerName: storedPrediction.winner ?? null, advice: storedPrediction.advice ?? null }) : null;
+      const oneXProbability = signal?.probability ?? (evaluation.modelProbability === null ? null : Number(evaluation.modelProbability));
+      const fairOdds = oneXProbability && oneXProbability > 0 ? 1 / oneXProbability : null;
       return <article className={`signal-card ${category === "PASS" ? "is-pass" : ""}`} key={recommendation.id}>
         <div className="signal-rank">{String(index + 1).padStart(2, "0")}</div>
         <div className="match-context"><span>{candidate.fixture.country} · {candidate.fixture.competitionName}</span><h3>{candidate.fixture.homeTeam.displayName}<i>vs</i>{candidate.fixture.awayTeam.displayName}</h3><time dateTime={candidate.fixture.kickoffAtUtc.toISOString()}>{dateTime.format(candidate.fixture.kickoffAtUtc)}</time></div>
         <div className="decision-block"><span className={`quality-pill quality-${category.toLowerCase()}`}>{categoryLabel[category]}</span><small>{category === "PASS" ? "Mercado analizado" : "Lectura sugerida"}</small><strong>{marketLabel("1X")}</strong>{signal?.over15Context && <span className="context-pill">+ Más de 1,5 goles</span>}</div>
-        <div className="signal-facts"><div><span>Probabilidad 1X</span><strong>{percent(signal?.probability ?? evaluation.modelProbability)}</strong></div><div><span>Riesgo de derrota</span><strong>{percent(storedPrediction?.away ?? null)}</strong></div><div><span>Brecha de protección</span><strong>{percent(signal?.protectionGap ?? null)}</strong></div>{directQuote && <><div><span>Cuota 1X</span><strong>{decimal(pricedEvaluation?.bestMarketOdds)}</strong></div><div><span>Valor esperado</span><strong>{percent(pricedEvaluation?.expectedValue)}</strong></div></>}</div>
+        {storedPrediction && <OneXPredictionBreakdown prediction={storedPrediction} source={predictionSource} />}
+        <div className="signal-facts"><div><span>Probabilidad 1X</span><strong>{percent(oneXProbability)}</strong></div><div><span>Riesgo de derrota</span><strong>{percent(storedPrediction?.away ?? null)}</strong></div><div><span>Cuota justa del modelo</span><strong>{decimal(fairOdds)}</strong></div><div><span>Brecha de protección</span><strong>{percent(signal?.protectionGap ?? null)}</strong></div><div><span>Cuota 1X real</span><strong>{directQuote ? decimal(pricedEvaluation?.bestMarketOdds) : "No disponible"}</strong></div><div><span>Valor esperado</span><strong>{directQuote ? percent(pricedEvaluation?.expectedValue) : "No calculable"}</strong></div></div>
+        <ForebetRankContext rank={index + 1} comparable={forebetComparable} />
         <div className="plain-explanation"><p><b>Por qué:</b> {reasons[0] ?? "Señal provisional consistente"}</p><p><b>Atención:</b> {risks[0] ?? "Muestra propia todavía limitada"}</p></div>
-        <details className="technical-detail"><summary>Ver análisis y riesgos</summary><p>Probabilidad 1X: {percent(signal?.probability ?? evaluation.modelProbability)} · separación frente a derrota: {percent(signal?.protectionGap ?? null)}.</p><p>Razones: {reasons.length ? reasons.join(" · ") : "Señal provisional consistente"}</p><p>Riesgos: {risks.length ? risks.join(" · ") : "Muestra propia todavía limitada"}</p></details>
+        <details className="technical-detail"><summary>Ver análisis, trazabilidad y riesgos</summary><p>Fuente de predicción: {predictionSource} · probabilidad 1X: {percent(oneXProbability)} · separación frente a derrota: {percent(signal?.protectionGap ?? null)}.</p><p>Razones: {reasons.length ? reasons.join(" · ") : "Señal provisional consistente"}</p><p>Riesgos: {risks.length ? risks.join(" · ") : "Muestra propia todavía limitada"}</p><small>Predicción persistida antes del kickoff · evaluación {evaluation.id} · recomendación {recommendation.id}.</small></details>
       </article>;
     })}</div></section>}
 
@@ -123,6 +137,6 @@ export async function DailyRankingStatus() {
 
     <section className="product-links"><Link href={`/historial?date=${run.sportsDate}`}><span>Revisar resultados</span><strong>Historial →</strong></Link><Link href="/rendimiento"><span>Ver si el modelo mejora</span><strong>Rendimiento →</strong></Link></section>
 
-    <details className="method-detail"><summary>Cómo funciona Intelligent 1X</summary><p>Suma local + empate, exige al menos 75 %, comprueba que ambos escenarios superen claramente a la derrota y rechaza contradicciones. Los amistosos y equipos de desarrollo no participan.</p><p>+1,5 goles nunca se calcula como una combinada ni se recomienda por sí solo: solo se muestra cuando la evidencia textual lo acompaña explícitamente. La muestra canónica contiene {calibration.sample} selecciones resueltas; Brier {decimal(calibration.brier)}.</p><p>No hay apuestas automáticas ni garantías de resultado. Edge y EV solo aparecen con cuota 1X real vinculada.</p><small>Políticas {run.scoringPolicyVersion} · {run.selectionPolicyVersion} · error de cuotas {capability?.lastProviderErrorCode ?? providerValidationError?.sanitizedErrorCode ?? "ninguno"}.</small></details>
+    <details className="method-detail"><summary>Cómo leer Intelligent 1X</summary><p>La ficha separa tres capas: predicción prepartido de {predictionSource}, referencia histórica retrospectiva de Forebet y precio real del mercado. Una fuente nunca se presenta como calibración de otra.</p><p>+1,5 goles no interviene en la selección: el backtest mostró que redujo el acierto del 1X. La muestra operacional propia contiene {calibration.sample} selecciones resueltas; Brier {decimal(calibration.brier)}.</p><p>No hay apuestas automáticas ni garantías de resultado. Edge y EV solo aparecen con cuota 1X real vinculada al mismo fixture.</p><small>Políticas {run.scoringPolicyVersion} · {run.selectionPolicyVersion} · error de cuotas {capability?.lastProviderErrorCode ?? providerValidationError?.sanitizedErrorCode ?? "ninguno"}.</small></details>
   </>;
 }

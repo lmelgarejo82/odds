@@ -71,9 +71,9 @@ describe("ETAPA 20C: UI usable y adquisición de odds", () => {
   it("define una jerarquía usable para escritorio y móvil sin puntuación opaca", async () => {
     const [css, ui, runtime, evidenceContract] = await Promise.all([readFile("src/app/daily.css", "utf8"), readFile("src/components/daily-ranking-status.tsx", "utf8"), readFile("src/infrastructure/market-v2/daily/runtime.ts", "utf8"), readFile("src/application/market-v2/capture/raw-evidence-store.ts", "utf8")]);
     expect(css).toContain("minmax(250px,1.45fr)"); expect(css).toContain("grid-template-areas"); expect(css).toContain("signal-facts");
-    expect(css).toContain("@media(max-width:850px)"); expect(css).toContain("@media(max-width:520px)"); expect(css).toContain('grid-template-areas:"rank" "match" "decision" "facts" "explanation" "detail"');
+    expect(css).toContain("@media(max-width:850px)"); expect(css).toContain("@media(max-width:520px)"); expect(css).toContain('grid-template-areas:"rank" "match" "decision" "prediction" "facts" "rankhistory" "explanation" "detail"');
     expect(css).toContain("overflow-wrap:anywhere");
-    expect(ui).toContain("Local o empate"); expect(ui).toContain("Señal media"); expect(ui).toContain("Cómo funciona Intelligent 1X"); expect(ui).toContain("No hay cuota directa verificada"); expect(ui).toContain("fuera del Top 10"); expect(ui).not.toContain("puntuación");
+    expect(ui).toContain("Local o empate"); expect(ui).toContain("Señal media"); expect(ui).toContain("Cómo leer Intelligent 1X"); expect(ui).toContain("No hay cuota directa verificada"); expect(ui).toContain("fuera del Top 10"); expect(ui).not.toContain("puntuación");
     for (const label of ["Club Deportivo Independiente del Valle Femenino", "UEFA Champions League Women Qualification", "Academia Internacional de Fútbol U20"]) {
       const sample = renderToStaticMarkup(createElement("strong", { className: "match-context" }, label));
       expect(sample).toContain(label);
